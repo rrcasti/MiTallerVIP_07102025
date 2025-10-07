@@ -1,15 +1,15 @@
-
 import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { useRouter, useSegments, usePathname } from 'expo-router';
 import { Stack } from 'expo-router';
-import { TouchableOpacity, Platform, Alert } from 'react-native'; // <-- Se añade Platform y Alert
+import { TouchableOpacity, Platform, Alert } from 'react-native';
 import { Edit } from 'lucide-react-native';
+import { VehicleProvider } from '../context/VehicleContext';
 
 // --- NUEVAS IMPORTACIONES PARA NOTIFICACIONES ---
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { savePushToken } from '../services/userService'; // <-- El nuevo servicio que creamos
+import { savePushToken } from '../services/userService';
 
 // --- LÓGICA PARA PEDIR PERMISOS Y OBTENER EL TOKEN ---
 Notifications.setNotificationHandler({
@@ -20,7 +20,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-async function registerForPushNotificationsAsync() {
+async function registerForPushNotificationsAsync(userUid) {
   let token;
   if (Device.isDevice) {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -35,6 +35,9 @@ async function registerForPushNotificationsAsync() {
     }
     token = (await Notifications.getExpoPushTokenAsync()).data;
     console.log("Expo Push Token:", token);
+    if (userUid) {
+      await savePushToken(userUid, token);
+    }
   } else {
     Alert.alert("Debe usar un dispositivo físico para recibir notificaciones push.");
   }
@@ -58,32 +61,23 @@ const InitialLayout = () => {
   const router = useRouter();
   const pathname = usePathname();
 
-  // useEffect para la redirección (sin cambios)
   useEffect(() => {
     if (isLoading) return;
-  const inTabsGroup = segments[0] === '(tabs)';
-  const isAllowedRoute = pathname.startsWith('/vehicles/') || pathname === '/profile' || inTabsGroup;
-  
-  if (user && !isAllowedRoute) {
-    router.replace('/(tabs)');
-  } else if (!user && isAllowedRoute) {
-    router.replace('/login');
-  }
-  }, [user, isLoading, segments, pathname]);
+    const inTabsGroup = segments[0] === '(tabs)';
+    const isAllowedRoute = pathname.startsWith('/vehicles/') || pathname === '/profile' || inTabsGroup;
+    
+    if (user && !isAllowedRoute) {
+      router.replace('/(tabs)');
+    } else if (!user && isAllowedRoute) {
+      router.replace('/login');
+    }
+  }, [user, isLoading, segments, pathname, router]);
 
-  // --- NUEVO useEffect PARA LAS NOTIFICACIONES ---
   useEffect(() => {
-    // Si no hay usuario, no hacemos nada.
-    if (!user) return;
-
-    // Cuando el usuario inicia sesión, registramos su token.
-    registerForPushNotificationsAsync().then(token => {
-      if (token) {
-        // Guardamos el token en Firestore
-        savePushToken(user.uid, token);
-      }
-    });
-  }, [user]); // Este efecto se ejecuta solo cuando el 'user' cambia.
+    if (user) {
+      registerForPushNotificationsAsync(user.uid);
+    }
+  }, [user]);
 
   return (
     <Stack>
@@ -92,6 +86,8 @@ const InitialLayout = () => {
       <Stack.Screen name="vehicles/VehiclesForm" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="vehicles/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="FileViewer" options={{ headerShown: false, presentation: 'modal', }} />
+      <Stack.Screen name="profile" options={{ headerShown: false }} />
+      <Stack.Screen name="login" options={{ headerShown: false }} />
     </Stack>
   );
 };
@@ -99,7 +95,9 @@ const InitialLayout = () => {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <InitialLayout />
+      <VehicleProvider> 
+        <InitialLayout />
+      </VehicleProvider>
     </AuthProvider>
   );
 }
