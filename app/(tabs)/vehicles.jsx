@@ -1,4 +1,4 @@
-// app/(tabs)/vehicles.jsx
+// RUTA: app/(tabs)/vehicles.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Text,
@@ -9,26 +9,54 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  Image,
 } from 'react-native';
-import { Plus, Car } from 'lucide-react-native';
+import { Plus, Car, Trash } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { getVehiclesForUser } from '../../services/vehicleService';
+import { getVehiclesForUser, deleteVehicle } from '../../services/vehicleService';
 import { auth } from '../../firebase/config';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const VehicleCard = ({ item, onPress }) => (
-  <TouchableOpacity style={styles.card} onPress={onPress}>
-    <View style={styles.cardHeader}>
-      <Text style={styles.cardTitle}>{item.make} {item.model}</Text>
-      <Text style={styles.cardYear}>{item.year}</Text>
-    </View>
-    <View style={styles.cardBody}>
-      <Text style={styles.cardLabel}>Patente</Text>
-      <Text style={styles.cardValue}>{item.license_plate}</Text>
-    </View>
-  </TouchableOpacity>
-);
+// El componente de la tarjeta de vehículo
+const VehicleCard = ({ item, onPress, onDeletePress }) => {
+  const getBorderColor = (id) => {
+    const colors = ['#f97316', '#10b981', '#3b82f6', '#ef4444'];
+    const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return colors[hash % colors.length];
+  };
+  const borderColor = getBorderColor(item.id);
 
+  return (
+    <TouchableOpacity
+      style={[styles.card, { borderLeftColor: borderColor }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.cardContent}>
+        {item.imageUrl ? (
+          <Image source={{ uri: item.imageUrl }} style={styles.vehicleImage} />
+        ) : (
+          <View style={styles.iconContainer}>
+            <Car size={32} color={borderColor} />
+          </View>
+        )}
+        <View style={styles.textContainer}>
+          <Text style={styles.cardTitle}>{item.make} {item.model}</Text>
+          <Text style={styles.cardSubtitle}>{item.license_plate}</Text>
+        </View>
+        <View style={styles.cardActions}>
+          <Text style={styles.cardYear}>{item.year}</Text>
+          <TouchableOpacity onPress={onDeletePress} style={styles.deleteButton}>
+            <Trash size={20} color="#94a3b8" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+// El componente para el estado vacío
 const EmptyState = ({ onAddPress }) => (
   <View style={styles.centeredContent}>
     <Car size={64} color="#94a3b8" />
@@ -41,15 +69,16 @@ const EmptyState = ({ onAddPress }) => (
   </View>
 );
 
+// El componente principal de la pantalla
 export default function MiGarageScreen() {
   const router = useRouter();
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
   const loadVehicles = useCallback(async (user) => {
     try {
-      setLoading(true);
       const userVehicles = await getVehiclesForUser(user.uid);
       setVehicles(userVehicles);
     } catch (err) {
@@ -57,6 +86,7 @@ export default function MiGarageScreen() {
       setError("No se pudieron cargar los vehículos.");
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
@@ -75,6 +105,29 @@ export default function MiGarageScreen() {
 
   const handleAddVehicle = () => {
     router.push('/vehicles/VehiclesForm');
+  };
+
+  const handleDeleteVehicle = (vehicleId) => {
+    Alert.alert(
+      "Eliminar Vehículo",
+      "¿Estás seguro de que quieres eliminar este vehículo? Esta acción no se puede deshacer.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteVehicle(vehicleId);
+              loadVehicles(auth.currentUser);
+            } catch (err) {
+              console.error("Error al eliminar el vehículo:", err);
+              Alert.alert("Error", "No se pudo eliminar el vehículo. Inténtalo de nuevo.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -103,9 +156,8 @@ export default function MiGarageScreen() {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0} 
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
       >
-        {/* Header */}
         <View style={styles.header}>
           <View>
             <Text style={styles.headerTitle}>Mi Garage</Text>
@@ -117,16 +169,21 @@ export default function MiGarageScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Lista de Vehículos */}
         <FlatList
           data={vehicles}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <VehicleCard 
-              item={item} 
-              onPress={() => router.push(`/vehicles/${item.id}`)} 
+            <VehicleCard
+              item={item}
+              onPress={() => router.push(`/vehicles/${item.id}`)}
+              onDeletePress={() => handleDeleteVehicle(item.id)}
             />
           )}
+          onRefresh={() => {
+            setIsRefreshing(true);
+            loadVehicles(auth.currentUser);
+          }}
+          refreshing={isRefreshing}
           contentContainerStyle={styles.listContainer}
         />
       </KeyboardAvoidingView>
@@ -145,34 +202,67 @@ const styles = StyleSheet.create({
   addButton: { backgroundColor: '#ea580c', flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center' },
   addButtonText: { color: '#fff', fontWeight: 'bold', marginLeft: 8 },
   listContainer: { paddingVertical: 10 },
+  
+  // Estilos de la tarjeta mejorados
   card: {
-    backgroundColor: 'white',
-    borderRadius: 12,
+    backgroundColor: '#fff',
+    borderRadius: 15,
     marginHorizontal: 20,
-    marginVertical: 8,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    marginVertical: 10,
     borderLeftWidth: 4,
-    borderLeftColor: '#f97316',
-    elevation: 2,
+    elevation: 5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
-  cardHeader: {
+  cardContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    gap: 15,
   },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#1e293b' },
-  cardYear: { fontSize: 14, color: '#64748b' },
-  cardBody: { padding: 16 },
-  cardLabel: { fontSize: 12, color: '#94a3b8' },
-  cardValue: { fontSize: 16, fontWeight: '500', color: '#334155' },
+  vehicleImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 10,
+    marginRight: 10,
+  },
+  iconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  textContainer: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  cardSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 4,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  cardYear: {
+    fontSize: 16,
+    color: '#334155',
+    fontWeight: '600',
+  },
+  deleteButton: {
+    padding: 5,
+  },
   emptyTitle: { fontSize: 20, fontWeight: 'bold', color: '#1e293b', marginTop: 16 },
   emptySubtitle: { fontSize: 14, color: '#64748b', textAlign: 'center', marginTop: 8, marginBottom: 24 },
 });
