@@ -21,7 +21,6 @@ import { getVehicleById, addVehicle, updateVehicle } from "../../services/vehicl
 import { uploadImageToFirebase } from "../../services/firebaseService"; // Importamos el servicio de subida de imágenes
 import { auth } from "../../firebase/config";
 
-// Función para abrir la galería de imágenes y seleccionar una foto.
 const pickImageAsync = async (setImage) => {
   let result = await ImagePicker.launchImageLibraryAsync({
     allowsEditing: true,
@@ -56,7 +55,8 @@ export default function VehiclesForm() {
     tire_pressure: "",
     modifications: "",
     custom_notes: "",
-    imageUrl: null, // <-- Agregamos el campo de URL de imagen
+    imageUrl: null,
+    mileage: "", // <-- Agregamos el campo de kilometraje
   });
 
   const [loading, setLoading] = useState(false);
@@ -73,7 +73,8 @@ export default function VehiclesForm() {
           }, {});
           setFormData({
             ...initialStrings,
-            imageUrl: vehicleData.imageUrl || null, // <-- Cargamos la imagen si existe
+            imageUrl: vehicleData.imageUrl || null,
+            mileage: String(vehicleData.mileage) || "", // <-- Cargamos el kilometraje si existe
           });
         } else {
           Alert.alert("Error", "No se encontraron los datos del vehículo a editar.");
@@ -100,7 +101,6 @@ export default function VehiclesForm() {
     setLoading(true);
 
     let imageUrl = formData.imageUrl;
-    // Si la URI de la imagen es local (no es un URL de Firebase), la subimos
     if (imageUrl && imageUrl.startsWith("file://")) {
       try {
         imageUrl = await uploadImageToFirebase(imageUrl, `vehicles/${auth.currentUser.uid}/${Date.now()}`);
@@ -115,7 +115,9 @@ export default function VehiclesForm() {
       const dataToSave = {
         ...formData,
         year: parseInt(formData.year) || 0,
-        imageUrl: imageUrl, // <-- Guardamos la URL de la imagen en la base de datos
+        imageUrl: imageUrl,
+        mileage: parseInt(formData.mileage) || 0, // <-- Guardamos el kilometraje como número
+        userId: auth.currentUser.uid,
       };
 
       if (isEditMode) {
@@ -151,7 +153,6 @@ export default function VehiclesForm() {
           </View>
         </View>
 
-        {/* Sección de la imagen */}
         <View style={styles.imageSection}>
           <Text style={styles.imageLabel}>Foto del Vehículo (Opcional)</Text>
           <TouchableOpacity
@@ -170,7 +171,6 @@ export default function VehiclesForm() {
           </TouchableOpacity>
         </View>
 
-        {/* Formulario (Datos Básicos) */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Car size={20} color="#ea580c" />
@@ -197,14 +197,25 @@ export default function VehiclesForm() {
                 <TextInput style={styles.input} value={formData.license_plate} onChangeText={(text) => handleChange("license_plate", text.toUpperCase())} autoCapitalize="characters"/>
               </View>
             </View>
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Color</Text>
-              <TextInput style={styles.input} value={formData.color} onChangeText={(text) => handleChange("color", text)}/>
+            <View style={styles.row}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Color</Text>
+                <TextInput style={styles.input} value={formData.color} onChangeText={(text) => handleChange("color", text)}/>
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Kilometraje (Km)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.mileage}
+                  onChangeText={(text) => handleChange("mileage", text.replace(/[^0-9]/g, ""))}
+                  placeholder="0"
+                  keyboardType="numeric"
+                />
+              </View>
             </View>
           </View>
         </View>
-        
-        {/* Formulario (Especificaciones Técnicas) */}
+
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Wrench size={20} color="#3b82f6" />
@@ -263,7 +274,6 @@ export default function VehiclesForm() {
   );
 }
 
-// Estilos
 const styles = StyleSheet.create({
   container: { padding: 16, backgroundColor: "#f8fafc", paddingBottom: 40 },
   header: { flexDirection: "row", alignItems: "center", marginBottom: 24 },

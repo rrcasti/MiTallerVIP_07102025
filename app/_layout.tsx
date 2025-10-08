@@ -54,7 +54,6 @@ async function registerForPushNotificationsAsync(userUid) {
   return token;
 }
 
-
 const InitialLayout = () => {
   const { user, isLoading } = useAuth();
   const segments = useSegments();
@@ -64,8 +63,13 @@ const InitialLayout = () => {
   useEffect(() => {
     if (isLoading) return;
     const inTabsGroup = segments[0] === '(tabs)';
-    const isAllowedRoute = pathname.startsWith('/vehicles/') || pathname === '/profile' || inTabsGroup;
-    
+
+    const isAllowedRoute =
+      pathname.startsWith('/vehicles/') ||
+      pathname.startsWith('/requests/') || // ✅ Línea agregada
+      pathname === '/profile' ||
+      inTabsGroup;
+
     if (user && !isAllowedRoute) {
       router.replace('/(tabs)');
     } else if (!user && isAllowedRoute) {
@@ -81,13 +85,14 @@ const InitialLayout = () => {
 
   return (
     <Stack>
-      <Stack.Screen name="chat" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="vehicles/VehiclesForm" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="vehicles/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="FileViewer" options={{ headerShown: false, presentation: 'modal', }} />
+      <Stack.Screen name="FileViewer" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="profile" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="requests/ServiceRequest" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="chat" options={{ headerShown: false }} />
     </Stack>
   );
 };
@@ -95,7 +100,7 @@ const InitialLayout = () => {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <VehicleProvider> 
+      <VehicleProvider>
         <InitialLayout />
       </VehicleProvider>
     </AuthProvider>

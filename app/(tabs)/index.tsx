@@ -122,7 +122,10 @@ export default function DashboardScreen() {
                     </TouchableOpacity> 
                 )} 
 
-                <TouchableOpacity style={styles.mainActionButton}> 
+                 <TouchableOpacity 
+                    style={styles.mainActionButton}
+                    onPress={() => router.push('requests/ServiceRequest')} // <-- AQUÍ SE AÑADE EL onPress
+                > 
                     <View> 
                         <Text style={styles.mainActionTitle}>Solicitar Servicio</Text> 
                         <Text style={styles.mainActionSubtitle}>Agenda tu cita o cotiza un servicio</Text> 
