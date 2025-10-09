@@ -1,28 +1,27 @@
-// En app/(tabs)/_layout.tsx
+// app/(tabs)/_layout.tsx
 
-import React, { useEffect } from 'react'; // <-- IMPORTAR useEffect
-import { Tabs, useRouter, usePathname } from 'expo-router'; // <-- AGREGAR useRouter y usePathname
-import { Home, Car, ShoppingBag, Bell, MessageCircle } from 'lucide-react-native';
-import { Alert } from 'react-native'; // <-- IMPORTAR Alert
-import { useAuth } from '../../context/AuthContext'; // <-- IMPORTAR useAuth
+import React, { useEffect } from 'react';
+import { Tabs, useRouter, usePathname } from 'expo-router';
+import { Home, Car, ShoppingBag, Bell, MessageCircle, Truck } from 'lucide-react-native';
+import { Alert, TouchableOpacity, StyleSheet } from 'react-native';
+import { useAuth } from '../../context/AuthContext';
 
 export default function TabLayout() {
-  const activeColor = '#FBBF24'; // Amarillo/Naranja para la pestaña activa
-  const inactiveColor = '#64748B'; // Gris para las inactivas
-/*
-  const { isProfileVerified, isLoading } = useAuth();
+  const activeColor = '#FBBF24';
+  const inactiveColor = '#64748B';
+  
+  // ✅ Hook para navegación
   const router = useRouter();
+
+  /*
+  const { isProfileVerified, isLoading } = useAuth();
   const pathname = usePathname();
 
-  // --- LÓGICA DE INTERCEPCIÓN DE PERFIL (AÑADIDA) ---
   useEffect(() => {
-    // Si la autenticación o la verificación del perfil están en curso, no hacemos nada.
     if (isLoading) {
       return;
     }
 
-    // 1. Verificamos si el perfil NO está verificado.
-    // 2. Nos aseguramos de que la ruta actual no sea ya la de perfil, para evitar bucles de alerta.
     if (!isProfileVerified && pathname !== '/profile') {
       Alert.alert(
         "Completa tu perfil",
@@ -40,58 +39,129 @@ export default function TabLayout() {
       );
     }
   }, [isProfileVerified, isLoading, pathname, router]);
-  // --- FIN DE LA LÓGICA DE INTERCEPCIÓN ---
-*/
+  */
 
-  return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: activeColor,
-        tabBarInactiveTintColor: inactiveColor,
-        headerShown: false, // Ocultamos el header por defecto
-        tabBarStyle: {
-          backgroundColor: '#0F172A', // Fondo oscuro para la barra
-          borderTopColor: '#334155', // Línea superior sutil
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="index" // Corresponde a index.tsx
-        options={{
-          title: 'Inicio',
-          tabBarIcon: ({ color }) => <Home size={24} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="vehicles" // Corresponde a vehicles.jsx
-        options={{
-          title: 'Mi Garage',
-          tabBarIcon: ({ color }) => <Car size={24} color={color} />,
-        }}
-      />
-      
-      {/* 👇 PESTAÑAS NUEVAS ACTIVADAS 👇 */}
-      <Tabs.Screen
-        name="store" // Corresponde a store.tsx
-        options={{
-          title: 'Tienda VIP',
-          tabBarIcon: ({ color }) => <ShoppingBag size={24} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="activity" 
-        options={{
-          title: 'Actividad',
-          tabBarIcon: ({ color }) => <Bell size={24} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="chat" 
-        options={{
-          title: 'Mi Chat',
-          tabBarIcon: ({ color }) => <MessageCircle size={24} color={color} />,
-        }}
-      />
-    </Tabs>
-  );
+  // ✅ Función para manejar solicitud de grúa
+  const handleTowRequest = () => {
+    Alert.alert(
+      "🚛 Servicio de Grúa",
+      "¿Necesitas asistencia de emergencia?",
+      [
+        {
+          text: "Sí, solicitar grúa",
+          onPress: () => {
+            console.log('🚛 Navegando a solicitud de grúa...');
+            // ✅ CAMBIO: Sin guión
+            router.push('/emergency/towRequest');  // ← ANTES: '/tow-request'
+          },
+        },
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+      ]
+    );
+  };
+
+  return (
+    <>
+      {/* ═══ TABS ORIGINALES (Sin cambios) ═══ */}
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: activeColor,
+          tabBarInactiveTintColor: inactiveColor,
+          headerShown: false,
+          tabBarStyle: {
+            backgroundColor: '#0F172A',
+            borderTopColor: '#334155',
+          },
+        }}
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Inicio',
+            tabBarIcon: ({ color }) => <Home size={24} color={color} />,
+            headerShown: false,
+          }}
+        />
+        <Tabs.Screen
+          name="vehicles"
+          options={{
+            title: 'Mi Garage',
+            tabBarIcon: ({ color }) => <Car size={24} color={color} />,
+          }}
+        />
+        
+        <Tabs.Screen
+          name="store"
+          options={{
+            title: 'Tienda VIP',
+            tabBarIcon: ({ color }) => <ShoppingBag size={24} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="activity" 
+          options={{
+            title: 'Actividad',
+            tabBarIcon: ({ color }) => <Bell size={24} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="chat" 
+          options={{
+            title: 'Mi Chat',
+            tabBarIcon: ({ color }) => <MessageCircle size={24} color={color} />,
+          }}
+        />
+      </Tabs>
+      
+      {/* ═══ BOTÓN FLOTANTE DE EMERGENCIA ═══ */}
+      <TouchableOpacity
+        style={styles.emergencyButton}
+        onPress={handleTowRequest}
+        activeOpacity={0.8}
+      >
+        <Truck size={28} color="white" />
+      </TouchableOpacity>
+    </>
+  );
 }
+
+// ═══ ESTILOS DEL BOTÓN FLOTANTE ═══
+const styles = StyleSheet.create({
+  emergencyButton: {
+    // Posicionamiento
+    position: 'absolute',
+    right: 20,
+    bottom: 80,
+    
+    // Tamaño
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    
+    // Color
+    backgroundColor: '#EF4444',
+    
+    // Centrado
+    justifyContent: 'center',
+    alignItems: 'center',
+    
+    // Sombra iOS
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    
+    // Sombra Android
+    elevation: 8,
+    
+    // Borde
+    borderWidth: 3,
+    borderColor: '#DC2626',
+  },
+});

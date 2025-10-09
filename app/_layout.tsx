@@ -1,10 +1,12 @@
+// Ruta: app/_layout.tsx
 import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { useRouter, useSegments, usePathname } from 'expo-router';
-import { Stack } from 'expo-router';
-import { TouchableOpacity, Platform, Alert } from 'react-native';
+import { Stack, Slot } from 'expo-router';
+import { Alert, Platform, TouchableOpacity } from 'react-native';
 import { Edit } from 'lucide-react-native';
 import { VehicleProvider } from '../context/VehicleContext';
+import { MembershipProvider } from '../context/MembershipContext';
 
 // --- NUEVAS IMPORTACIONES PARA NOTIFICACIONES ---
 import * as Notifications from 'expo-notifications';
@@ -54,7 +56,7 @@ async function registerForPushNotificationsAsync(userUid) {
   return token;
 }
 
-const InitialLayout = () => {
+const AppLayout = () => {
   const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
@@ -66,8 +68,11 @@ const InitialLayout = () => {
 
     const isAllowedRoute =
       pathname.startsWith('/vehicles/') ||
-      pathname.startsWith('/requests/') || // ✅ Línea agregada
+      pathname.startsWith('/requests/') ||
       pathname === '/profile' ||
+      pathname === '/memberships' ||
+      // ✅ CAMBIO 1: Sin guión
+      pathname.startsWith('/emergency/') ||   // ← ANTES: '/tow-request'
       inTabsGroup;
 
     if (user && !isAllowedRoute) {
@@ -85,14 +90,75 @@ const InitialLayout = () => {
 
   return (
     <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="vehicles/VehiclesForm" options={{ headerShown: false, presentation: 'modal' }} />
-      <Stack.Screen name="vehicles/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="FileViewer" options={{ headerShown: false, presentation: 'modal' }} />
-      <Stack.Screen name="profile" options={{ headerShown: false }} />
-      <Stack.Screen name="login" options={{ headerShown: false }} />
-      <Stack.Screen name="requests/ServiceRequest" options={{ headerShown: false, presentation: 'modal' }} />
-      <Stack.Screen name="chat" options={{ headerShown: false }} />
+      {/* Tabs principales */}
+      <Stack.Screen 
+        name="(tabs)" 
+        options={{ headerShown: false }} 
+      />
+      
+      {/* Vehículos */}
+      <Stack.Screen 
+        name="vehicles/VehiclesForm" 
+        options={{ 
+          headerShown: false, 
+          presentation: 'modal' 
+        }} 
+      />
+      <Stack.Screen 
+        name="vehicles/[id]" 
+        options={{ headerShown: false }} 
+      />
+      
+      {/* Archivos y utilidades */}
+      <Stack.Screen 
+        name="FileViewer" 
+        options={{ 
+          headerShown: false, 
+          presentation: 'modal' 
+        }} 
+      />
+      
+      {/* Perfil y autenticación */}
+      <Stack.Screen 
+        name="profile" 
+        options={{ headerShown: false }} 
+      />
+      <Stack.Screen 
+        name="login" 
+        options={{ headerShown: false }} 
+      />
+      
+      {/* Solicitudes de servicio */}
+      <Stack.Screen 
+        name="requests/ServiceRequest" 
+        options={{ 
+          headerShown: false, 
+          presentation: 'modal' 
+        }} 
+      />
+      
+      {/* Chat */}
+      <Stack.Screen 
+        name="chat" 
+        options={{ headerShown: false }} 
+      />
+      
+      {/* ✅ CAMBIO 2: Grúa sin guión + mejor configuración */}
+      <Stack.Screen 
+        name="towRequest"  // ← ANTES: "tow-request"
+        options={{ 
+          presentation: 'modal',
+          headerShown: false,
+          // ✅ AGREGADO: Animación suave
+          animation: 'slide_from_bottom',
+        }} 
+      />
+      
+      {/* Membresías */}
+      <Stack.Screen 
+        name="memberships" 
+        options={{ headerShown: false }} 
+      />
     </Stack>
   );
 };
@@ -101,7 +167,9 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <VehicleProvider>
-        <InitialLayout />
+        <MembershipProvider>
+          <AppLayout />
+        </MembershipProvider>
       </VehicleProvider>
     </AuthProvider>
   );

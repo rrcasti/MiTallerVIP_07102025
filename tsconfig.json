@@ -10,6 +10,9 @@
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx"
-, "app/(tabs)/chat.jsx"  ]
+    "**/*.tsx",
+    "app/(tabs)/chat.jsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ]
 }

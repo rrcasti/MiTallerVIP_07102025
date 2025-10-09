@@ -1,72 +1,57 @@
 // RUTA: app/(tabs)/index.tsx
 
-import { Car, Calendar, ShoppingBag, MessageCircle, FileText, User, Wrench, Crown, CheckCircle } from 'lucide-react-native';
+import { Car, Calendar, ShoppingBag, MessageCircle, FileText, User, Wrench, Crown, CheckCircle, Truck  } from 'lucide-react-native';
 import React, { useState, useEffect, useCallback } from "react";
 import { Text, View, ActivityIndicator, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView} from "react-native";
 import { useRouter } from 'expo-router';
 import QuickAccessButton from '../../components/QuickAccessButton';
 import { getRepairsForUser } from '../../services/repairService';
 import { getVehiclesForUser } from '../../services/vehicleService';
-
+import { useMembership } from '../../context/MembershipContext'; // Ya lo tenías, perfecto.
 import { useAuth } from '../../context/AuthContext';
-import { useVehicles } from '../../context/VehicleContext'; // <-- AÑADIMOS EL HOOK DEL CONTEXTO
+import { useVehicles } from '../../context/VehicleContext';
 
 const statusConfig = {
-    ingresado: { label: "Ingresado", color: "#3B82F6" },
-    diagnostico: { label: "En Diagnóstico", color: "#F59E0B" },
-    // Agrega más estados aquí para que no falle
-    default: { label: "Desconocido", color: "#94A3B8" }
+    ingresado: { label: "Ingresado", color: "#3B82F6" },
+    diagnostico: { label: "En Diagnóstico", color: "#F59E0B" },
+    default: { label: "Desconocido", color: "#94A3B8" }
 };
 
 const ActiveServiceCard = ({ service, vehicle }) => {
-    const config = statusConfig[service.status] || statusConfig.default;
-    return (
-        <View style={styles.serviceCard}>
-            <View style={styles.serviceHeader}>
-                <View>
-                    <Text style={styles.serviceVehicle}>{vehicle?.brand} {vehicle?.model}</Text>
-                    <Text style={styles.servicePlate}>{service.plate || 'Patente: N/A'}</Text>
-                </View>
-                <View style={[styles.serviceStatus, { backgroundColor: config.color }]}>
-                    <Text style={[styles.serviceStatusText]}>{config.label}</Text>
-                </View>
-            </View>
-            <Text style={styles.serviceDescription}>
-                {service.description || "Revisión general y cambio de aceite."}
-            </Text>
-            <TouchableOpacity style={styles.serviceDetailsButton}>
-                <Text style={styles.serviceDetailsButtonText}>Ver Detalles</Text>
-            </TouchableOpacity>
-        </View>
-    );
+    // ... (Este componente no cambia)
 };
 
 export default function DashboardScreen() {
-    const router = useRouter();
-    const { user, isLoading: isAuthLoading } = useAuth();
-    const { vehicles, loading: isVehiclesLoading } = useVehicles(); // <-- USAMOS EL HOOK
+    const router = useRouter();
+    const { user, isLoading: isAuthLoading } = useAuth();
+    const { vehicles, loading: isVehiclesLoading } = useVehicles();
+    
+    // CAMBIO: El hook useMembership ya está aquí, lo cual es correcto.
+    const { membership, isLoading: isMembershipLoading } = useMembership(); 
+    
+    const [loadingRepairs, setLoadingRepairs] = useState(true);
+    const [activeServices, setActiveServices] = useState([]);
+    const [primaryVehicle, setPrimaryVehicle] = useState(null);
+    
+    // CAMBIO: Eliminamos el estado 'hasMembership' porque ahora usamos 'membership' del contexto.
+    // const [hasMembership, setHasMembership] = useState(false);
 
-    const [loadingRepairs, setLoadingRepairs] = useState(true);
-    const [activeServices, setActiveServices] = useState([]);
-    const [primaryVehicle, setPrimaryVehicle] = useState(null);
-    const [hasMembership, setHasMembership] = useState(false);
+    const loadDashboardData = useCallback(async () => {
+        if (!user) return;
+        setLoadingRepairs(true);
+        try {
+            const repairsData = await getRepairsForUser(user.uid);
+            setActiveServices(repairsData.active);
+        } catch (error) {
+            console.error("Error cargando datos del dashboard:", error);
+        } finally {
+            setLoadingRepairs(false);
+        }
+    }, [user]);
 
-    const loadDashboardData = useCallback(async () => {
-        if (!user) return;
-        setLoadingRepairs(true);
-        try {
-            const repairsData = await getRepairsForUser(user.uid);
-            setActiveServices(repairsData.active);
-        } catch (error) {
-            console.error("Error cargando datos del dashboard:", error);
-        } finally {
-            setLoadingRepairs(false);
-        }
-    }, [user]);
-
-    useEffect(() => {
-        loadDashboardData();
-    }, [loadDashboardData]);
+    useEffect(() => {
+        loadDashboardData();
+    }, [loadDashboardData]);
 
     useEffect(() => {
         if (vehicles.length > 0) {
@@ -74,104 +59,112 @@ export default function DashboardScreen() {
         }
     }, [vehicles]);
 
-    if (isAuthLoading || isVehiclesLoading || loadingRepairs) {
-        return (
-            <SafeAreaView style={styles.safeArea}>
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <ActivityIndicator size="large" color="#FBBF24" />
-                    <Text style={{ color: 'white', marginTop: 10 }}>Cargando tu información...</Text>
-                </View>
-            </SafeAreaView>
-        );
-    }
+    // CAMBIO: Agregamos 'isMembershipLoading' a la condición de carga general.
+    if (isAuthLoading || isVehiclesLoading || loadingRepairs || isMembershipLoading) {
+        return (
+            <SafeAreaView style={styles.safeArea}>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color="#FBBF24" />
+                    <Text style={{ color: 'white', marginTop: 10 }}>Cargando tu información...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
-    return (
-        <SafeAreaView style={styles.safeArea}>
-            <ScrollView contentContainerStyle={styles.container}>
-                <View style={styles.header}>
-                    <View>
-                        <Text style={styles.headerTitle}>Mi Taller VIP</Text>
-                        <Text style={styles.headerSubtitle}>Experiencia Premium</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => router.push('/profile')}>
-                        <User color="#CBD5E1" size={28} />
-                    </TouchableOpacity>
-                </View>
+    return (
+        <SafeAreaView style={styles.safeArea}>
+            <ScrollView contentContainerStyle={styles.container}>
+                <View style={styles.header}>
+                    <View>
+                        <Text style={styles.headerTitle}>Mi Taller VIP</Text>
+                        <Text style={styles.headerSubtitle}>Experiencia Premium</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => router.push('/profile')}>
+                        <User color="#CBD5E1" size={28} />
+                    </TouchableOpacity>
+                </View>
 
-                <Text style={styles.welcomeText}>¡Bienvenido, {user?.displayName?.split(' ')[0] || 'Cliente'}!</Text>
-                {primaryVehicle && <Text style={styles.vehicleText}>{`${primaryVehicle.brand} ${primaryVehicle.model}`}</Text>}
-                
-                {hasMembership ? ( 
-                    <View style={styles.vipCard}> 
-                        <View style={styles.vipIconContainer}><Crown color="#1E293B" size={20} /></View> 
-                        <View style={styles.vipInfo}> 
-                            <Text style={styles.vipTitle}>Miembro VIP</Text> 
-                            <Text style={styles.vipSubtitle}>Activo hasta 13 sep 2026</Text> 
-                        </View> 
-                        <TouchableOpacity onPress={() => router.push('/(tabs)/store')}> 
-                            <Text style={styles.vipButtonText}>Tienda Exclusiva</Text> 
-                        </TouchableOpacity> 
-                    </View> 
-                ) : ( 
-                    <TouchableOpacity style={[styles.vipCard, {backgroundColor: '#334155'}]} onPress={() => { /* Navegar a Membresías */ }}> 
-                        <View style={styles.vipIconContainer}><Crown color="#1E293B" size={20} /></View> 
-                        <View style={styles.vipInfo}> 
-                            <Text style={[styles.vipTitle, {color: '#FBBF24'}]}>Únete al Club VIP</Text> 
-                            <Text style={[styles.vipSubtitle, {color: '#94A3B8'}]}>Beneficios exclusivos</Text> 
-                        </View> 
-                    </TouchableOpacity> 
-                )} 
+                <Text style={styles.welcomeText}>¡Bienvenido, {user?.displayName?.split(' ')[0] || 'Cliente'}!</Text>
+                {primaryVehicle && <Text style={styles.vehicleText}>{`${primaryVehicle.brand} ${primaryVehicle.model}`}</Text>}
+                
+                {/* ===================================================================== */}
+                {/* CAMBIO: Se reemplaza 'hasMembership' por 'membership' y se usan datos dinámicos */}
+                {/* ===================================================================== */}
+                {membership ? ( 
+    // Si el usuario TIENE membresía, mostramos esta tarjeta mejorada
+    <View style={styles.vipCard}>
+      <TouchableOpacity 
+        style={styles.vipInfoClickable}
+        onPress={() => router.push('/memberships')} // <-- ACCIÓN PRINCIPAL: IR A MEMBRESÍAS
+      >
+        <View style={styles.vipIconContainer}><Crown color="#1E293B" size={20} /></View> 
+        <View style={styles.vipInfo}> 
+            <Text style={styles.vipTitle}>Miembro {membership.type.charAt(0).toUpperCase() + membership.type.slice(1)}</Text> 
+            <Text style={styles.vipSubtitle}>
+                Activo hasta {new Date(membership.end_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </Text> 
+        </View> 
+      </TouchableOpacity>
+      <TouchableOpacity 
+        style={styles.vipSideButton}
+        onPress={() => router.push('/(tabs)/store')} // <-- ACCIÓN SECUNDARIA: IR A LA TIENDA
+      > 
+          <Text style={styles.vipButtonText}>Tienda VIP</Text> 
+      </TouchableOpacity> 
+    </View> 
+) : ( 
+    // Si el usuario NO tiene membresía, la tarjeta de invitación no cambia
+    <TouchableOpacity style={[styles.vipCard, {backgroundColor: '#334155'}]} onPress={() => router.push('/memberships')}> 
+        <View style={styles.vipIconContainer}><Crown color="#1E293B" size={20} /></View> 
+        <View style={styles.vipInfo}> 
+            <Text style={[styles.vipTitle, {color: '#FBBF24'}]}>Únete al Club VIP</Text> 
+            <Text style={[styles.vipSubtitle, {color: '#94A3B8'}]}>Beneficios exclusivos</Text> 
+        </View> 
+    </TouchableOpacity> 
+                )} 
 
-                 <TouchableOpacity 
-                    style={styles.mainActionButton}
-                    onPress={() => router.push('requests/ServiceRequest')} // <-- AQUÍ SE AÑADE EL onPress
-                > 
-                    <View> 
-                        <Text style={styles.mainActionTitle}>Solicitar Servicio</Text> 
-                        <Text style={styles.mainActionSubtitle}>Agenda tu cita o cotiza un servicio</Text> 
-                    </View> 
-                    <Wrench color="#0F172A" size={32} /> 
-                </TouchableOpacity> 
+                {/* El resto del código no se toca */}
+                <TouchableOpacity 
+                    style={styles.mainActionButton}
+                    onPress={() => router.push('requests/ServiceRequest')}
+                > 
+                    <View> 
+                        <Text style={styles.mainActionTitle}>Solicitar Servicio</Text> 
+                        <Text style={styles.mainActionSubtitle}>Agenda tu cita o cotiza un servicio</Text> 
+                    </View> 
+                    <Wrench color="#0F172A" size={32} /> 
+                </TouchableOpacity> 
 
-                <View style={styles.section}> 
-                    <Text style={styles.sectionTitle}>Accesos Rápidos</Text> 
-                    <View style={styles.qaGrid}> 
-                        <QuickAccessButton icon={Car} title="Mi Garage" subtitle={`${vehicles.length} vehículos`} onPress={() => router.push('/(tabs)/vehicles')} /> 
-                        <QuickAccessButton icon={Calendar} title="Agendar Turno" subtitle="Mantenimiento" onPress={() => {}} /> 
-                        <QuickAccessButton icon={ShoppingBag} title="Tienda VIP" subtitle="Productos" onPress={() => router.push('/(tabs)/store')} /> 
-                        <QuickAccessButton icon={MessageCircle} title="Mi Asesor" subtitle="Chat directo" onPress={() => router.push('/(tabs)/chat')} /> 
-                        <QuickAccessButton icon={FileText} title="Documentos" subtitle="Facturas" onPress={() => {}} /> 
-                    </View> 
-                </View> 
+                <View style={styles.section}> 
+                    <Text style={styles.sectionTitle}>Accesos Rápidos</Text> 
+                    <View style={styles.qaGrid}> 
+                        <QuickAccessButton icon={Car} title="Mi Garage" subtitle={`${vehicles.length} vehículos`} onPress={() => router.push('/(tabs)/vehicles')} /> 
+                        <QuickAccessButton icon={Calendar} title="Agendar Turno" subtitle="Mantenimiento" onPress={() => {}} /> 
+                        <QuickAccessButton icon={ShoppingBag} title="Tienda VIP" subtitle="Productos" onPress={() => router.push('/(tabs)/store')} /> 
+                        <QuickAccessButton icon={MessageCircle} title="Mi Asesor" subtitle="Chat directo" onPress={() => router.push('/(tabs)/chat')} /> 
+                        <QuickAccessButton icon={FileText} title="Documentos" subtitle="Facturas" onPress={() => {}} /> 
+                        <QuickAccessButton icon={Truck} title="Grúa 24/7" subtitle="Emergencias" onPress={() => router.push('/tow-request')}/>                                /> 
 
-                <View style={styles.section}> 
-                    <Text style={styles.sectionTitle}>Servicios en Proceso</Text> 
-                    {activeServices.length > 0 ? ( 
-                        activeServices.map((service) => { 
-                            const vehicle = vehicles.find(v => v.id === service.vehicleId); 
-                            return <ActiveServiceCard key={service.id} service={service} vehicle={vehicle} /> 
-                        }) 
-                    ) : ( 
-                        <View style={styles.emptyStateCard}> 
-                            <CheckCircle color="#22C55E" size={48} /> 
-                            <Text style={styles.emptyStateText}>¡Todo en perfecto estado!</Text> 
-                            <Text style={styles.emptyStateSubtitle}>No tienes servicios activos. Tu vehículo está listo.</Text> 
-                            <View style={styles.emptyStateActions}> 
-                                <TouchableOpacity style={styles.emptyStateButtonPrimary} onPress={() => router.push('/(tabs)/vehicles')}> 
-                                    <Text style={styles.emptyStateButtonTextPrimary}>Ver Vehículos</Text> 
-                                </TouchableOpacity> 
-                                <TouchableOpacity style={styles.emptyStateButtonSecondary}> 
-                                    <Text style={styles.emptyStateButtonTextSecondary}>Agendar Mantenimiento</Text> 
-                                </TouchableOpacity> 
-                            </View> 
-                        </View> 
-                    )} 
-                </View> 
-            </ScrollView> 
-        </SafeAreaView> 
-    ); 
+                    </View> 
+                </View> 
+
+                <View style={styles.section}> 
+                    <Text style={styles.sectionTitle}>Servicios en Proceso</Text> 
+                    {activeServices.length > 0 ? ( 
+                        activeServices.map((service) => { 
+                            const vehicle = vehicles.find(v => v.id === service.vehicleId); 
+                            return <ActiveServiceCard key={service.id} service={service} vehicle={vehicle} /> 
+                        }) 
+                    ) : ( 
+                        <View style={styles.emptyStateCard}> 
+                            {/* ... */}
+                        </View> 
+                    )} 
+                </View> 
+            </ScrollView> 
+        </SafeAreaView> 
+    ); 
 } 
-
 // Los estilos no necesitan cambios, pero he ajustado un detalle para mayor robustez
 const styles = StyleSheet.create({ 
     safeArea: { flex: 1, backgroundColor: '#0F172A' }, 
@@ -213,4 +206,15 @@ const styles = StyleSheet.create({
     serviceDescription: { color: '#CBD5E1', fontSize: 14, marginBottom: 16, }, 
     serviceDetailsButton: { backgroundColor: '#334155', borderRadius: 8, paddingVertical: 12, alignItems: 'center', }, 
     serviceDetailsButtonText: { color: '#FFFFFF', fontWeight: 'bold', }, 
+vipInfoClickable: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  vipSideButton: {
+    paddingLeft: 12,
+    marginLeft: 12,
+    borderLeftWidth: 1,
+    borderLeftColor: '#475569',
+  },
 });
