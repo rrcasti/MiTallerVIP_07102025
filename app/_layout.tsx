@@ -7,6 +7,8 @@ import { Alert, Platform, TouchableOpacity } from 'react-native';
 import { Edit } from 'lucide-react-native';
 import { VehicleProvider } from '../context/VehicleContext';
 import { MembershipProvider } from '../context/MembershipContext';
+import { HealthTrackingProvider } from '../context/HealthTrackingContext';
+
 
 // --- NUEVAS IMPORTACIONES PARA NOTIFICACIONES ---
 import * as Notifications from 'expo-notifications';
@@ -82,11 +84,11 @@ const AppLayout = () => {
     }
   }, [user, isLoading, segments, pathname, router]);
 
-  useEffect(() => {
-    if (user) {
-      registerForPushNotificationsAsync(user.uid);
-    }
-  }, [user]);
+  //useEffect(() => {
+   // if (user) {
+   //   registerForPushNotificationsAsync(user.uid);
+  //  }
+  //}, [user]);
 
   return (
     <Stack>
@@ -168,7 +170,9 @@ export default function RootLayout() {
     <AuthProvider>
       <VehicleProvider>
         <MembershipProvider>
-          <AppLayout />
+          <HealthTrackingProvider>
+            <AppLayout />
+          </HealthTrackingProvider>
         </MembershipProvider>
       </VehicleProvider>
     </AuthProvider>

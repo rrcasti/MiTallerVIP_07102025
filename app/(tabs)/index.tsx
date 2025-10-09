@@ -18,7 +18,37 @@ const statusConfig = {
 };
 
 const ActiveServiceCard = ({ service, vehicle }) => {
-    // ... (Este componente no cambia)
+    const router = useRouter();
+    const status = statusConfig[service.status] || statusConfig.default;
+    
+    return (
+        <View style={styles.serviceCard}>
+            <View style={styles.serviceHeader}>
+                <View>
+                    <Text style={styles.serviceVehicle}>
+                        {vehicle ? `${vehicle.brand} ${vehicle.model}` : 'Vehículo'}
+                    </Text>
+                    <Text style={styles.servicePlate}>
+                        {vehicle?.license_plate || 'N/A'}
+                    </Text>
+                </View>
+                <View style={[styles.serviceStatus, { backgroundColor: status.color }]}>
+                    <Text style={styles.serviceStatusText}>{status.label}</Text>
+                </View>
+            </View>
+            
+            <Text style={styles.serviceDescription}>
+                {service.description || 'Sin descripción'}
+            </Text>
+            
+            <TouchableOpacity 
+                style={styles.serviceDetailsButton}
+                onPress={() => router.push(`/(tabs)/services`)}
+            >
+                <Text style={styles.serviceDetailsButtonText}>Ver Detalles</Text>
+            </TouchableOpacity>
+        </View>
+    );
 };
 
 export default function DashboardScreen() {
@@ -90,60 +120,60 @@ export default function DashboardScreen() {
                 {/* ===================================================================== */}
                 {/* CAMBIO: Se reemplaza 'hasMembership' por 'membership' y se usan datos dinámicos */}
                 {/* ===================================================================== */}
-                {membership ? ( 
+                {membership ? (
     // Si el usuario TIENE membresía, mostramos esta tarjeta mejorada
     <View style={styles.vipCard}>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.vipInfoClickable}
         onPress={() => router.push('/memberships')} // <-- ACCIÓN PRINCIPAL: IR A MEMBRESÍAS
       >
-        <View style={styles.vipIconContainer}><Crown color="#1E293B" size={20} /></View> 
-        <View style={styles.vipInfo}> 
+        <View style={styles.vipIconContainer}><Crown color="#1E293B" size={20} /></View>
+        <View style={styles.vipInfo}>
             <Text style={styles.vipTitle}>Miembro {membership.type.charAt(0).toUpperCase() + membership.type.slice(1)}</Text> 
             <Text style={styles.vipSubtitle}>
                 Activo hasta {new Date(membership.end_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
-            </Text> 
-        </View> 
+            </Text>
+        </View>
       </TouchableOpacity>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.vipSideButton}
         onPress={() => router.push('/(tabs)/store')} // <-- ACCIÓN SECUNDARIA: IR A LA TIENDA
-      > 
-          <Text style={styles.vipButtonText}>Tienda VIP</Text> 
-      </TouchableOpacity> 
-    </View> 
+      >
+          <Text style={styles.vipButtonText}>Tienda VIP</Text>
+      </TouchableOpacity>
+    </View>
 ) : ( 
     // Si el usuario NO tiene membresía, la tarjeta de invitación no cambia
     <TouchableOpacity style={[styles.vipCard, {backgroundColor: '#334155'}]} onPress={() => router.push('/memberships')}> 
-        <View style={styles.vipIconContainer}><Crown color="#1E293B" size={20} /></View> 
-        <View style={styles.vipInfo}> 
-            <Text style={[styles.vipTitle, {color: '#FBBF24'}]}>Únete al Club VIP</Text> 
-            <Text style={[styles.vipSubtitle, {color: '#94A3B8'}]}>Beneficios exclusivos</Text> 
-        </View> 
-    </TouchableOpacity> 
-                )} 
+        <View style={styles.vipIconContainer}><Crown color="#1E293B" size={20} /></View>
+        <View style={styles.vipInfo}>
+            <Text style={[styles.vipTitle, {color: '#FBBF24'}]}>Únete al Club VIP</Text>
+            <Text style={[styles.vipSubtitle, {color: '#94A3B8'}]}>Beneficios exclusivos</Text>
+        </View>
+    </TouchableOpacity>
+                )}
 
                 {/* El resto del código no se toca */}
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={styles.mainActionButton}
                     onPress={() => router.push('requests/ServiceRequest')}
                 > 
-                    <View> 
-                        <Text style={styles.mainActionTitle}>Solicitar Servicio</Text> 
-                        <Text style={styles.mainActionSubtitle}>Agenda tu cita o cotiza un servicio</Text> 
-                    </View> 
-                    <Wrench color="#0F172A" size={32} /> 
-                </TouchableOpacity> 
+                    <View>
+                        <Text style={styles.mainActionTitle}>Solicitar Servicio</Text>
+                        <Text style={styles.mainActionSubtitle}>Agenda tu cita o cotiza un servicio</Text>
+                    </View>
+                    <Wrench color="#0F172A" size={32} />
+                </TouchableOpacity>
 
-                <View style={styles.section}> 
-                    <Text style={styles.sectionTitle}>Accesos Rápidos</Text> 
-                    <View style={styles.qaGrid}> 
-                        <QuickAccessButton icon={Car} title="Mi Garage" subtitle={`${vehicles.length} vehículos`} onPress={() => router.push('/(tabs)/vehicles')} /> 
-                        <QuickAccessButton icon={Calendar} title="Agendar Turno" subtitle="Mantenimiento" onPress={() => {}} /> 
-                        <QuickAccessButton icon={ShoppingBag} title="Tienda VIP" subtitle="Productos" onPress={() => router.push('/(tabs)/store')} /> 
-                        <QuickAccessButton icon={MessageCircle} title="Mi Asesor" subtitle="Chat directo" onPress={() => router.push('/(tabs)/chat')} /> 
-                        <QuickAccessButton icon={FileText} title="Documentos" subtitle="Facturas" onPress={() => {}} /> 
-                        <QuickAccessButton icon={Truck} title="Grúa 24/7" subtitle="Emergencias" onPress={() => router.push('/tow-request')}/>                                /> 
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Accesos Rápidos</Text>
+                    <View style={styles.qaGrid}>
+                        <QuickAccessButton icon={Car} title="Mi Garage" subtitle={`${vehicles.length} vehículos`} onPress={() => router.push('/(tabs)/vehicles')} />
+                        <QuickAccessButton icon={Calendar} title="Agendar Turno" subtitle="Mantenimiento" onPress={() => {}} />
+                        <QuickAccessButton icon={ShoppingBag} title="Tienda VIP" subtitle="Productos" onPress={() => router.push('/(tabs)/store')} />
+                        <QuickAccessButton icon={MessageCircle} title="Mi Asesor" subtitle="Chat directo" onPress={() => router.push('/(tabs)/chat')} />
+                        <QuickAccessButton icon={FileText} title="Documentos" subtitle="Facturas" onPress={() => {}} />
+                        <QuickAccessButton icon={Truck} title="Grúa 24/7" subtitle="Emergencias" onPress={() => router.push('/tow-request')}/>
 
                     </View> 
                 </View> 
