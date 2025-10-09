@@ -1,0 +1,396 @@
+🔍 BUSCANDO ERRORES DE TEXT...
+
+❌ 169 ERRORES ENCONTRADOS:
+
+
+📄 \app\(tabs)\activity.jsx
+   Línea 5 [return vacío]
+   return (
+
+📄 \app\(tabs)\chat.jsx
+   Línea 57 [return vacío]
+   return (
+   Línea 67 [ternario falsy string]
+   behavior={Platform.OS === "ios" ? "padding" : "height"}
+   Línea 96 [ternario falsy string]
+   container: { flex: 1, backgroundColor: '#0F172A' },
+
+📄 \app\(tabs)\index.tsx
+   Línea 15 [ternario falsy string]
+   ingresado: { label: "Ingresado", color: "#3B82F6" },
+   Línea 16 [ternario falsy string]
+   diagnostico: { label: "En Diagnóstico", color: "#F59E0B" },
+   Línea 17 [ternario falsy string]
+   default: { label: "Desconocido", color: "#94A3B8" }
+   Línea 24 [return vacío]
+   return (
+   Línea 29 [ternario con string]
+   {vehicle ? `${vehicle.brand} ${vehicle.model}` : 'Vehículo'}
+   Línea 29 [ternario falsy string]
+   {vehicle ? `${vehicle.brand} ${vehicle.model}` : 'Vehículo'}
+   Línea 94 [return vacío]
+   return (
+   Línea 96 [ternario falsy string]
+   <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+   Línea 104 [return vacío]
+   return (
+   Línea 134 [ternario falsy string]
+   Activo hasta {new Date(membership.end_date).toLocaleDateString('es-ES', { day: '
+   Línea 147 [ternario falsy string]
+   <TouchableOpacity style={[styles.vipCard, {backgroundColor: '#334155'}]} onPress
+   Línea 218 [ternario falsy string]
+   safeArea: { flex: 1, backgroundColor: '#0F172A' },
+   Línea 221 [ternario falsy string]
+   headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#FFFFFF' },
+   Línea 222 [ternario falsy string]
+   headerSubtitle: { fontSize: 14, color: '#94A3B8' },
+   Línea 223 [ternario falsy string]
+   welcomeText: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF' },
+   Línea 228 [ternario falsy string]
+   vipTitle: { color: '#1E293B', fontSize: 16, fontWeight: 'bold' },
+   Línea 232 [ternario falsy string]
+   mainActionTitle: { color: '#1E293B', fontSize: 18, fontWeight: 'bold' },
+   Línea 236 [ternario falsy string]
+   qaGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between
+   Línea 237 [ternario falsy string]
+   emptyStateCard: { backgroundColor: '#1E293B', borderRadius: 12, padding: 24, ali
+   Línea 242 [ternario falsy string]
+   emptyStateButtonTextPrimary: { color: '#1E293B', fontWeight: 'bold' },
+   Línea 244 [ternario falsy string]
+   emptyStateButtonTextSecondary: { color: '#CBD5E1', fontWeight: 'bold' },
+   Línea 253 [ternario falsy string]
+   serviceStatusText: { fontSize: 12, fontWeight: 'bold', color: '#0F172A' },
+
+📄 \app\(tabs)\store.jsx
+   Línea 19 [ternario falsy string]
+   { id: 'recommended', title: 'Para tu auto' },
+   Línea 20 [ternario falsy string]
+   { id: 'all', title: 'Todos' },
+   Línea 21 [ternario falsy string]
+   { id: 'cuidado_estetico', title: 'Cuidado y Estética' },
+   Línea 22 [ternario falsy string]
+   { id: 'rendimiento', title: 'Rendimiento' },
+   Línea 23 [ternario falsy string]
+   { id: 'accesorios', title: 'Accesorios' },
+   Línea 29 [return vacío]
+   return (
+   Línea 48 [return vacío]
+   return (
+   Línea 68 [return vacío]
+   return (
+   Línea 154 [return vacío]
+   return (
+   Línea 181 [return vacío]
+   return (
+   Línea 222 [ternario falsy string]
+   subtitle: { fontSize: 16, color: PALETTE.textSecondary, marginBottom: 32, lineHe
+   Línea 243 [ternario falsy string]
+   productCard: { backgroundColor: PALETTE.cardBackground, borderRadius: 16, margin
+   Línea 252 [ternario falsy string]
+   addButton: { flexDirection: 'row', backgroundColor: PALETTE.accent, borderRadius
+
+📄 \app\(tabs)\vehicles.jsx
+   Línea 35 [return vacío]
+   return (
+   Línea 96 [ternario falsy string]
+   [{ text: "Cancelar", style: "cancel" }, { text: "Eliminar", style: "destructive"
+   Línea 110 [return vacío]
+   return (
+   Línea 122 [return vacío]
+   return (
+   Línea 161 [ternario falsy string]
+   container: { flex: 1, backgroundColor: '#f8fafc' },
+   Línea 163 [ternario falsy string]
+   infoText: { marginTop: 10, fontSize: 16, color: '#475569' },
+   Línea 164 [ternario falsy string]
+   errorText: { fontSize: 16, color: '#dc2626', textAlign: 'center' },
+   Línea 165 [ternario falsy string]
+   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'ce
+   Línea 166 [ternario falsy string]
+   headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#1e293b' },
+   Línea 167 [ternario falsy string]
+   headerSubtitle: { fontSize: 14, color: '#64748b' },
+   Línea 168 [ternario falsy string]
+   addButton: { backgroundColor: '#ea580c', flexDirection: 'row', paddingVertical: 
+
+📄 \app\(tabs)\_layout.tsx
+   Línea 66 [return vacío]
+   return (
+
+📄 \app\emergency\towRequest.tsx
+   Línea 143 [return vacío]
+   return (
+   Línea 172 [return vacío]
+   return (
+   Línea 183 [ternario falsy string]
+   <View style={[styles.emergencyAlert, {backgroundColor: '#4A2525'}]}>
+   Línea 205 [ternario con string]
+   {location ? 'Ubicación Detectada' :
+   Línea 216 [ternario falsy string]
+   : 'Por favor, activa y permite el acceso a tu GPS.'}
+   Línea 338 [ternario falsy string]
+   textInput: { fontSize: 16, color: PALETTE.textPrimary, padding: 16, backgroundCo
+   Línea 339 [ternario falsy string]
+   textArea: { fontSize: 16, color: PALETTE.textPrimary, padding: 16, height: 100, 
+   Línea 346 [ternario falsy string]
+   selectOption: { flexDirection: 'row', justifyContent: 'space-between', alignItem
+   Línea 348 [ternario falsy string]
+   selectOptionText: { color: PALETTE.textPrimary, fontSize: 16, fontWeight: '500' 
+   Línea 349 [ternario falsy string]
+   placeholderText: { color: PALETTE.textSecondary, fontSize: 16, padding: 10, text
+
+📄 \app\login.tsx
+   Línea 73 [return vacío]
+   return (
+   Línea 76 [ternario falsy string]
+   behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+   Línea 83 [ternario falsy string]
+   source={{ uri: 'https://img.icons8.com/plasticine/200/car-service.png' }}
+
+📄 \app\memberships.tsx
+   Línea 53 [ternario con string]
+   {isCurrentPlan ? 'Plan Actual' : 'Suscribirse'}
+   Línea 53 [ternario falsy string]
+   {isCurrentPlan ? 'Plan Actual' : 'Suscribirse'}
+   Línea 79 [ternario falsy string]
+   { text: 'Cancelar', style: 'cancel' },
+   Línea 105 [return vacío]
+   return (
+   Línea 107 [ternario falsy string]
+   <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+   Línea 114 [return vacío]
+   return (
+
+📄 \app\profile.jsx
+   Línea 134 [return vacío]
+   return (
+   Línea 157 [return vacío]
+   return (
+   Línea 182 [return vacío]
+   return (
+   Línea 186 [ternario falsy string]
+   behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+   Línea 220 [ternario falsy string]
+   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'spac
+   Línea 252 [ternario falsy string]
+   safeArea: { flex: 1, backgroundColor: '#0F172A' },
+   Línea 254 [ternario falsy string]
+   centeredContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', ba
+   Línea 262 [ternario falsy string]
+   title: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF' },
+   Línea 282 [ternario falsy string]
+   adminText: { fontSize: 18, fontWeight: 'bold', color: '#1E293B' },
+   Línea 294 [ternario falsy string]
+   membershipTitle: { fontSize: 18, fontWeight: 'bold', color: '#1E293B' },
+   Línea 295 [ternario falsy string]
+   membershipSubtitle: { fontSize: 14, color: '#475569' },
+   Línea 317 [ternario falsy string]
+   label: { fontSize: 12, color: '#64748B' },
+   Línea 318 [ternario falsy string]
+   value: { fontSize: 16, color: '#FFFFFF', marginTop: 2, fontWeight: '500' },
+
+📄 \app\requests\ServiceRequest.jsx
+   Línea 31 [ternario falsy string]
+   { id: 'mantenimiento_preventivo', title: 'Mantenimiento Preventivo', description
+   Línea 32 [ternario falsy string]
+   { id: 'reparacion_mecanica', title: 'Reparación Mecánica', description: 'Solució
+   Línea 33 [ternario falsy string]
+   { id: 'diagnostico', title: 'Diagnóstico Computarizado', description: 'Escaneo d
+   Línea 34 [ternario falsy string]
+   { id: 'cambio_aceite', title: 'Cambio de Aceite y Filtros', description: 'Servic
+   Línea 35 [ternario falsy string]
+   { id: 'frenos', title: 'Sistema de Frenos', description: 'Revisión y cambio de p
+   Línea 36 [ternario falsy string]
+   { id: 'neumaticos', title: 'Neumáticos', description: 'Cambio, rotación, alineac
+   Línea 37 [ternario falsy string]
+   { id: 'alineacion_balanceo', title: 'Alineación y Balanceo', description: 'Corre
+   Línea 38 [ternario falsy string]
+   { id: 'suspension', title: 'Sistema de Suspensión', description: 'Revisión de am
+   Línea 39 [ternario falsy string]
+   { id: 'aire_acondicionado', title: 'Aire Acondicionado', description: 'Mantenimi
+   Línea 40 [ternario falsy string]
+   { id: 'sistema_electrico', title: 'Sistema Eléctrico', description: 'Diagnóstico
+   Línea 41 [ternario falsy string]
+   { id: 'chapa_pintura', title: 'Chapa y Pintura', description: 'Reparaciones de c
+   Línea 42 [ternario falsy string]
+   { id: 'lavado_detailing', title: 'Lavado y Detailing', description: 'Limpieza pr
+   Línea 43 [ternario falsy string]
+   { id: 'revision_tecnica', title: 'Revisión Técnica', description: 'Preparación y
+   Línea 44 [ternario falsy string]
+   { id: 'instalacion_accesorios', title: 'Instalación de Accesorios', description:
+   Línea 45 [ternario falsy string]
+   { id: 'venta_vehiculo', title: 'Quiero Vender mi Vehículo', description: 'Servic
+   Línea 46 [ternario falsy string]
+   { id: 'cotizacion_seguro', title: 'Cotización de Seguro', description: 'Asesoram
+   Línea 47 [ternario falsy string]
+   { id: 'otro', title: 'Otro Servicio', description: 'Describe tu necesidad en la 
+   Línea 141 [return vacío]
+   return (
+   Línea 142 [ternario falsy string]
+   <View style={[styles.container, { justifyContent: 'center', alignItems: 'center'
+   Línea 149 [return vacío]
+   return (
+   Línea 152 [ternario falsy string]
+   behavior={Platform.OS === "ios" ? "padding" : "height"}
+   Línea 178 [ternario falsy string]
+   <View style={{flexDirection: 'row', alignItems: 'center'}}>
+   Línea 219 [return vacío]
+   return (
+   Línea 261 [ternario falsy string]
+   {preferredDate ? new Date(preferredDate + 'T00:00:00').toLocaleDateString('es-ES
+   Línea 318 [ternario falsy string]
+   vehicleOption: { flexDirection: 'row', justifyContent: 'space-between', alignIte
+   Línea 319 [ternario falsy string]
+   vehicleOptionBrand: { fontSize: 16, color: PALETTE.textPrimary, fontWeight: '500
+   Línea 324 [ternario falsy string]
+   serviceItemSelected: { borderColor: PALETTE.accent, backgroundColor: 'rgba(247, 
+   Línea 325 [ternario falsy string]
+   checkboxFake: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderCo
+   Línea 327 [ternario falsy string]
+   serviceItemTitle: { fontSize: 16, color: PALETTE.textPrimary, fontWeight: '600' 
+   Línea 337 [ternario falsy string]
+   badge: { backgroundColor: PALETTE.accent, borderRadius: 12, width: 24, height: 2
+   Línea 342 [ternario falsy string]
+   modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgro
+   Línea 343 [ternario falsy string]
+   calendarContainer: { width: '90%', borderRadius: 16, overflow: 'hidden' },
+   Línea 349 [ternario falsy string]
+   submitButtonDisabled: { backgroundColor: '#555' },
+   Línea 350 [ternario falsy string]
+   submitButtonText: { color: PALETTE.background, fontSize: 18, fontWeight: 'bold' 
+
+📄 \app\vehicles\new.jsx
+   Línea 23 [return vacío]
+   return (
+   Línea 59 [ternario falsy string]
+   container: { flex: 1, padding: 20, backgroundColor: '#f8fafc' },
+
+📄 \app\vehicles\VehiclesForm.jsx
+   Línea 140 [ternario falsy string]
+   return <ActivityIndicator style={{ flex: 1, justifyContent: 'center' }} size="la
+   Línea 143 [return vacío]
+   return (
+   Línea 144 [ternario falsy string]
+   <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+   Línea 280 [ternario falsy string]
+   title: { fontSize: 24, fontWeight: "bold", color: "#1e293b" },
+   Línea 281 [ternario falsy string]
+   subtitle: { fontSize: 14, color: "#64748b" },
+   Línea 320 [ternario falsy string]
+   cardTitle: { fontSize: 18, fontWeight: "bold", marginLeft: 8, color: "#ea580c" }
+   Línea 325 [ternario falsy string]
+   input: { borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, paddingHorizon
+   Línea 326 [ternario falsy string]
+   buttonRow: { flexDirection: "row", gap: 12, justifyContent: "space-between" },
+   Línea 327 [ternario falsy string]
+   button: { flex: 1, paddingVertical: 14, borderRadius: 8, flexDirection: "row", j
+   Línea 328 [ternario falsy string]
+   primaryButton: { backgroundColor: "#ea580c" },
+   Línea 329 [ternario falsy string]
+   outlineButton: { borderWidth: 1, borderColor: "#ea580c" },
+   Línea 331 [ternario falsy string]
+   outlineButtonText: { color: "#ea580c" },
+
+📄 \app\vehicles\[id].jsx
+   Línea 59 [ternario falsy string]
+   { text: "Cancelar", style: "cancel" },
+   Línea 93 [return vacío]
+   return (
+   Línea 186 [ternario falsy string]
+   container: { flex: 1, backgroundColor: '#f8fafc' },
+   Línea 187 [ternario falsy string]
+   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+   Línea 202 [ternario falsy string]
+   headerTitleContainer: { alignItems: 'center' },
+   Línea 203 [ternario falsy string]
+   headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
+   Línea 204 [ternario falsy string]
+   headerSubtitle: { fontSize: 14, color: '#94a3b8', textTransform: 'uppercase' },
+   Línea 231 [ternario falsy string]
+   cardTitle: { fontSize: 18, fontWeight: 'bold', marginLeft: 8, color: '#334155' }
+   Línea 250 [ternario falsy string]
+   infoRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, bord
+   Línea 251 [ternario falsy string]
+   infoLabel: { flex: 1, fontSize: 16, color: '#64748b' },
+   Línea 252 [ternario falsy string]
+   infoValue: { fontSize: 16, fontWeight: '600', color: '#1e293b' },
+   Línea 254 [ternario falsy string]
+   dateText: { marginLeft: 8, color: '#64748b' },
+   Línea 257 [ternario falsy string]
+   button: { flex: 1, paddingVertical: 16, borderRadius: 12, alignItems: 'center' }
+   Línea 258 [ternario falsy string]
+   outlineButton: { borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#fff'
+   Línea 259 [ternario falsy string]
+   outlineButtonText: { color: '#334155', fontWeight: 'bold' },
+   Línea 260 [ternario falsy string]
+   solidButton: { backgroundColor: '#ea580c' },
+   Línea 261 [ternario falsy string]
+   solidButtonText: { color: '#fff', fontWeight: 'bold' },
+   Línea 263 [ternario falsy string]
+   deleteButtonText: { color: '#dc2626', fontWeight: 'bold' },
+
+📄 \app\_layout.tsx
+   Línea 93 [return vacío]
+   return (
+   Línea 169 [return vacío]
+   return (
+
+📄 \components\external-link.tsx
+   Línea 8 [return vacío]
+   return (
+
+📄 \components\haptic-tab.tsx
+   Línea 6 [return vacío]
+   return (
+
+📄 \components\hello-wave.tsx
+   Línea 4 [return vacío]
+   return (
+   Línea 11 [ternario falsy string]
+   '50%': { transform: [{ rotate: '25deg' }] },
+
+📄 \components\parallax-scroll-view.tsx
+   Línea 47 [return vacío]
+   return (
+   Línea 60 [variable sin Text]
+   <ThemedView style={styles.content}>{children}</ThemedView>
+
+📄 \components\QuickAccessButton.tsx
+   Línea 5 [return vacío]
+   return (
+
+📄 \components\themed-text.tsx
+   Línea 20 [return vacío]
+   return (
+
+📄 \components\ui\collapsible.tsx
+   Línea 14 [return vacío]
+   return (
+   Línea 25 [ternario falsy string]
+   style={{ transform: [{ rotate: isOpen ? '90deg' : '0deg' }] }}
+   Línea 28 [variable sin Text]
+   <ThemedText type="defaultSemiBold">{title}</ThemedText>
+   Línea 30 [variable sin Text]
+   {isOpen && <ThemedView style={styles.content}>{children}</ThemedView>}
+
+📄 \components\ui\icon-symbol.ios.tsx
+   Línea 17 [return vacío]
+   return (
+
+📄 \context\AuthContext.tsx
+   Línea 55 [return vacío]
+   return (
+   Línea 62 [return vacío]
+   return (
+
+📄 \context\HealthTrackingContext.tsx
+   Línea 378 [return vacío]
+   return (
+
+📄 \context\MembershipContext.tsx
+   Línea 33 [return vacío]
+   return (
+
+📄 \context\VehicleContext.jsx
+   Línea 54 [variable sin Text]
+   return <VehicleContext.Provider value={value}>{children}</VehicleContext.Provide

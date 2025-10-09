@@ -4,7 +4,7 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import { auth } from '../firebase/config';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
-import { getUserProfile } from '../services/profileService'; // Importar tu servicio
+import { getUserProfile } from '../services/profileService';
 
 interface AuthContextType {
   user: FirebaseUser | null;
@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setIsProfileVerified(hasRequiredData);
         } catch (e) {
           console.error("Error al obtener el perfil del usuario:", e);
-          setIsProfileVerified(false); // Si hay un error, asumimos que no está verificado
+          setIsProfileVerified(false);
         }
       } else {
         setUser(null);

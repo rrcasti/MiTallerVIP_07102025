@@ -1,179 +1,355 @@
-// RUTA: app/vehicles/VehiclesForm.jsx
+// RUTA: app/(tabs)/vehicles.jsx
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from "react-native";
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Text,
+  View,
+  FlatList,
+  ActivityIndicator,
+  StyleSheet,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+  ImageBackground,
+  Image
+} from 'react-native';
+import { Plus, Car, Trash, Wrench, Drop, Gauge } from 'lucide-react-native'; 
+import { useRouter } from 'expo-router';
+import { deleteVehicle } from '../../services/vehicleService';
+import { auth } from '../../firebase/config';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Save, Car, Wrench } from 'lucide-react-native';
-// Importamos todas las funciones del servicio que necesitamos
-import { getVehicleById, addVehicle, updateVehicle } from '../../services/vehicleService';
+import { useVehicles } from '../../context/VehicleContext';
 
-export default function VehiclesForm() {
-  const router = useRouter();
-  // Hook para leer el 'vehicleId' de la URL (ej: ?vehicleId=123)
-  const { vehicleId } = useLocalSearchParams();
-  
-  const isEditMode = !!vehicleId; // True si estamos en modo edición
-
-  const [formData, setFormData] = useState({
-    brand: "", model: "", year: "", license_plate: "", color: "",
-    vin: "", engine_type: "", displacement: "", recommended_oil: "",
-    tire_pressure: "", modifications: "", custom_notes: ""
-  });
-  
-  const [loading, setLoading] = useState(false);
-  const [isFetchingData, setIsFetchingData] = useState(isEditMode); // Muestra carga si estamos en modo edición
-
-  // Este useEffect se encarga de cargar los datos del vehículo si estamos en modo edición
-  useEffect(() => {
-    if (isEditMode) {
-      const loadVehicle = async () => {
-        const vehicleData = await getVehicleById(vehicleId);
-        if (vehicleData) {
-          // Convertimos todos los valores a string para los TextInput
-          const initialStrings = Object.entries(vehicleData).reduce((acc, [key, value]) => {
-            acc[key] = String(value || '');
-            return acc;
-          }, {});
-          setFormData(initialStrings);
-        } else {
-          Alert.alert("Error", "No se encontraron los datos del vehículo a editar.");
-          router.back();
-        }
-        setIsFetchingData(false);
-      };
-      loadVehicle();
-    }
-  }, [vehicleId]);
-
-  const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+// ═══════════════════════════════════════════════════════════
+// COMPONENTE: VehicleCard
+// ═══════════════════════════════════════════════════════════
+const VehicleCard = ({ item, onPress, onDeletePress }) => {
+  const getBorderColor = (id) => {
+    const colors = ['#f97316', '#10b981', '#3b82f6', '#ef4444'];
+    const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return colors[hash % colors.length];
   };
 
-  const handleSubmit = async () => {
-    if (loading) return;
-
-    if (!formData.brand.trim() || !formData.model.trim() || !formData.year.trim() || !formData.license_plate.trim()) {
-      Alert.alert("Error", "Por favor completa los campos obligatorios.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const dataToSave = {
-        ...formData,
-        year: parseInt(formData.year) || 0,
-      };
-
-      if (isEditMode) {
-        await updateVehicle(vehicleId, dataToSave);
-        Alert.alert("Éxito", "Vehículo actualizado correctamente.");
-      } else {
-        await addVehicle(dataToSave);
-        Alert.alert("Éxito", "Vehículo agregado correctamente.");
-      }
-      router.back();
-    } catch (error) {
-      console.error("Error guardando vehículo:", error);
-      Alert.alert("Error", "Ocurrió un problema al guardar el vehículo.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (isFetchingData) {
-    return <ActivityIndicator style={{ flex: 1, justifyContent: 'center' }} size="large" />;
-  }
+  const borderColor = getBorderColor(item.id);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} disabled={loading}>
-            <ArrowLeft size={24} color="#ea580c" />
-          </TouchableOpacity>
-          <View style={{ marginLeft: 12 }}>
-            <Text style={styles.title}>{isEditMode ? "Editar Vehículo" : "Agregar Vehículo"}</Text>
-            <Text style={styles.subtitle}>{isEditMode ? "Actualiza los datos" : "Registra tu vehículo"}</Text>
+    <TouchableOpacity
+      style={[styles.card, { borderLeftColor: borderColor }]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <View style={styles.cardHeader}>
+        <View style={styles.cardTitleContainer}>
+          <Text style={styles.cardTitle}>{item.make} {item.model}</Text>
+          <Text style={styles.cardYear}>{item.year}</Text>
+        </View>
+        <TouchableOpacity onPress={onDeletePress} style={styles.deleteButton}>
+          <Trash size={20} color="#94a3b8" />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.cardContent}>
+        {item.imageUrl ? (
+          <Image source={{ uri: item.imageUrl }} style={styles.cardImage} />
+        ) : (
+          <View style={[styles.cardImagePlaceholder, { backgroundColor: borderColor + '20' }]}>
+            <Car size={40} color={borderColor} />
+          </View>
+        )}
+        <View style={styles.cardDetails}>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Patente</Text>
+            <Text style={styles.detailValue}>{item.license_plate}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Color</Text>
+            <Text style={styles.detailValue}>{item.color || 'N/A'}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Kilometraje</Text>
+            <Text style={styles.detailValue}>{item.mileage ? `${item.mileage} Km` : 'N/A'}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <View style={styles.iconText}>
+              <Wrench size={16} color="#64748b" />
+              <Text style={styles.detailValue}>{item.engine_type || 'N/A'}</Text>
+            </View>
+            <View style={styles.iconText}>
+              <Gauge size={16} color="#64748b" />
+              <Text style={styles.detailValue}>{item.displacement || 'N/A'}</Text>
+            </View>
           </View>
         </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
-        {/* Formulario (Datos Básicos) */}
-        <View style={styles.card}>
-            <View style={styles.cardHeader}><Car size={20} color="#ea580c" /><Text style={styles.cardTitle}>Datos Básicos</Text></View>
-            <View style={styles.cardContent}>
-              {/* Campos del formulario... */}
-              <Text style={styles.label}>Marca *</Text>
-              <TextInput style={styles.input} value={formData.brand} onChangeText={(text) => handleChange("brand", text)} placeholder="Toyota, Ford, etc."/>
-              <Text style={styles.label}>Modelo *</Text>
-              <TextInput style={styles.input} value={formData.model} onChangeText={(text) => handleChange("model", text)} placeholder="Corolla, Focus, etc."/>
-              <Text style={styles.label}>Año *</Text>
-              <TextInput style={styles.input} value={formData.year} onChangeText={(text) => handleChange("year", text.replace(/[^0-9]/g, ""))} keyboardType="numeric" maxLength={4}/>
-              <Text style={styles.label}>Patente *</Text>
-              <TextInput style={styles.input} value={formData.license_plate} onChangeText={(text) => handleChange("license_plate", text.toUpperCase())} autoCapitalize="characters"/>
-              <Text style={styles.label}>Color</Text>
-              <TextInput style={styles.input} value={formData.color} onChangeText={(text) => handleChange("color", text)}/>
-            </View>
-        </View>
-        
-        {/* Formulario (Especificaciones Técnicas) */}
-        {/* --- CÓDIGO NUEVO (COMPLETO) --- */}
-<View style={styles.card}>
-  <View style={styles.cardHeader}><Wrench size={20} color="#3b82f6" /><Text style={styles.cardTitle}>Especificaciones Técnicas</Text></View>
-  <View style={styles.cardContent}>
-    <Text style={styles.label}>Número de Chasis (VIN)</Text>
-    <TextInput style={styles.input} value={formData.vin} onChangeText={(text) => handleChange("vin", text.toUpperCase())} autoCapitalize="characters" editable={!loading} />
+// ═══════════════════════════════════════════════════════════
+// COMPONENTE: EmptyState (✅ ESTE FALTABA)
+// ═══════════════════════════════════════════════════════════
+const EmptyState = ({ onAddPress }) => {
+  return (
+    <View style={styles.centeredContent}>
+      <Car size={64} color="#94a3b8" />
+      <Text style={styles.emptyTitle}>No tienes vehículos registrados</Text>
+      <Text style={styles.emptySubtitle}>
+        Agrega tu primer vehículo para comenzar a usar nuestros servicios
+      </Text>
+      <TouchableOpacity style={styles.addButton} onPress={onAddPress}>
+        <Plus size={18} color="#fff" />
+        <Text style={styles.addButtonText}>Registrar mi primer vehículo</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
-    <Text style={styles.label}>Tipo de Motor</Text>
-    <TextInput style={styles.input} value={formData.engine_type} onChangeText={(text) => handleChange("engine_type", text)} editable={!loading} />
+// ═══════════════════════════════════════════════════════════
+// COMPONENTE PRINCIPAL: MiGarageScreen
+// ═══════════════════════════════════════════════════════════
+export default function MiGarageScreen() {
+  const router = useRouter();
+  const { vehicles, loading, loadVehicles } = useVehicles();
 
-    <Text style={styles.label}>Cilindrada</Text>
-    <TextInput style={styles.input} value={formData.displacement} onChangeText={(text) => handleChange("displacement", text)} editable={!loading} />
+  const handleAddVehicle = () => { 
+    router.push('/vehicles/VehiclesForm'); 
+  };
 
-    <Text style={styles.label}>Aceite Recomendado</Text>
-    <TextInput style={styles.input} value={formData.recommended_oil} onChangeText={(text) => handleChange("recommended_oil", text)} editable={!loading} />
+  const handleDeleteVehicle = (vehicleId) => {
+    Alert.alert(
+      "Eliminar Vehículo",
+      "¿Estás seguro de que quieres eliminar este vehículo? Esta acción no se puede deshacer.",
+      [
+        { 
+          text: "Cancelar", 
+          style: "cancel" 
+        }, 
+        { 
+          text: "Eliminar", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await deleteVehicle(vehicleId);
+              loadVehicles();
+            } catch (err) {
+              Alert.alert("Error", "No se pudo eliminar el vehículo. Inténtalo de nuevo.");
+            }
+          },
+        },
+      ]
+    );
+  };
 
-    <Text style={styles.label}>Presión de Neumáticos</Text>
-    <TextInput style={styles.input} value={formData.tire_pressure} onChangeText={(text) => handleChange("tire_pressure", text)} editable={!loading} />
+  // Estado de carga
+  if (loading) {
+    return (
+      <View style={styles.centeredContent}>
+        <ActivityIndicator size="large" color="#ea580c" />
+        <Text style={styles.infoText}>Cargando tu Garage...</Text>
+      </View>
+    );
+  }
 
-    <Text style={styles.label}>Modificaciones</Text>
-    <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} value={formData.modifications} onChangeText={(text) => handleChange("modifications", text)} multiline editable={!loading} />
+  // Estado vacío
+  if (vehicles.length === 0) {
+    return <EmptyState onAddPress={handleAddVehicle} />;
+  }
 
-    <Text style={styles.label}>Notas Técnicas</Text>
-    <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} value={formData.custom_notes} onChangeText={(text) => handleChange("custom_notes", text)} multiline editable={!loading} />
-  </View>
-</View>
-
-        {/* Botones */}
-        <View style={styles.buttonRow}>
-          <TouchableOpacity onPress={() => router.back()} style={[styles.button, styles.outlineButton]} disabled={loading}>
-            <Text style={[styles.buttonText, styles.outlineButtonText]}>Cancelar</Text>
+  // Lista de vehículos
+  return (
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+      >
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerTitle}>Mi Garage</Text>
+            <Text style={styles.headerSubtitle}>Gestiona tus vehículos</Text>
+          </View>
+          <TouchableOpacity style={styles.addButton} onPress={handleAddVehicle}>
+            <Plus size={18} color="#fff" />
+            <Text style={styles.addButtonText}>Agregar</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleSubmit} style={[styles.button, styles.primaryButton]} disabled={loading}>
-            {loading ? <ActivityIndicator color="white" /> : <><Save size={18} color="white" /><Text style={[styles.buttonText, { marginLeft: 8 }]}>{isEditMode ? "Actualizar" : "Guardar"}</Text></>}
-          </TouchableOpacity>
         </View>
-      </ScrollView>
+        <FlatList
+          data={vehicles}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <VehicleCard
+              item={item}
+              onPress={() => router.push(`/vehicles/${item.id}`)}
+              onDeletePress={() => handleDeleteVehicle(item.id)}
+            />
+          )}
+          onRefresh={loadVehicles}
+          refreshing={loading}
+          contentContainerStyle={styles.listContainer}
+        />
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-// Estilos
+// ═══════════════════════════════════════════════════════════
+// ESTILOS
+// ═══════════════════════════════════════════════════════════
 const styles = StyleSheet.create({
-  container: { padding: 16, backgroundColor: "#f8fafc", paddingBottom: 40 },
-  header: { flexDirection: "row", alignItems: "center", marginBottom: 24 },
-  title: { fontSize: 24, fontWeight: "bold", color: "#1e293b" },
-  subtitle: { fontSize: 14, color: "#64748b" },
-  card: { backgroundColor: "#fff", borderRadius: 12, marginBottom: 24, padding: 16, elevation: 2, shadowColor: "#000", shadowOpacity: 0.1, shadowOffset: { width: 0, height: 1 }, shadowRadius: 4 },
-  cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  cardTitle: { fontSize: 18, fontWeight: "bold", marginLeft: 8, color: "#ea580c" },
-  cardContent: { gap: 12 },
-  label: { marginBottom: 4, color: "#64748b", fontSize: 14 },
-  input: { borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, color: "#1e293b", backgroundColor: "#f8fafc" },
-  buttonRow: { flexDirection: "row", gap: 12, justifyContent: "space-between" },
-  button: { flex: 1, paddingVertical: 14, borderRadius: 8, flexDirection: "row", justifyContent: "center", alignItems: "center" },
-  primaryButton: { backgroundColor: "#ea580c" },
-  outlineButton: { borderWidth: 1, borderColor: "#ea580c" },
-  buttonText: { color: "white", fontWeight: "bold", fontSize: 16 },
-  outlineButtonText: { color: "#ea580c" },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#f8fafc' 
+  },
+  centeredContent: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    padding: 20 
+  },
+  infoText: { 
+    marginTop: 10, 
+    fontSize: 16, 
+    color: '#475569' 
+  },
+  errorText: { 
+    fontSize: 16, 
+    color: '#dc2626', 
+    textAlign: 'center' 
+  },
+  header: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    padding: 20, 
+    backgroundColor: '#fff', 
+    borderBottomWidth: 1, 
+    borderBottomColor: '#e2e8f0' 
+  },
+  headerTitle: { 
+    fontSize: 24, 
+    fontWeight: 'bold', 
+    color: '#1e293b' 
+  },
+  headerSubtitle: { 
+    fontSize: 14, 
+    color: '#64748b' 
+  },
+  addButton: { 
+    backgroundColor: '#ea580c', 
+    flexDirection: 'row', 
+    paddingVertical: 10, 
+    paddingHorizontal: 16, 
+    borderRadius: 8, 
+    alignItems: 'center' 
+  },
+  addButtonText: { 
+    color: '#fff', 
+    fontWeight: 'bold', 
+    marginLeft: 8 
+  },
+  listContainer: { 
+    paddingVertical: 10 
+  },
+  
+  // Estilos de la tarjeta de vehículo
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    marginHorizontal: 20,
+    marginVertical: 10,
+    borderLeftWidth: 4,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    overflow: 'hidden',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  cardTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  cardYear: {
+    fontSize: 14,
+    color: '#64748b',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    padding: 5,
+  },
+  cardContent: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 15,
+  },
+  cardImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+  },
+  cardImagePlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardDetails: {
+    flex: 1,
+    gap: 8,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#334155',
+  },
+  iconText: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  
+  // Estilos del EmptyState
+  emptyTitle: { 
+    fontSize: 20, 
+    fontWeight: 'bold', 
+    color: '#1e293b', 
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  emptySubtitle: { 
+    fontSize: 14, 
+    color: '#64748b', 
+    textAlign: 'center', 
+    marginTop: 8, 
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
 });

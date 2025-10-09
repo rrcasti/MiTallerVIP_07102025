@@ -3,7 +3,6 @@
 import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import { getVehiclesForUser } from '../services/vehicleService';
 import { auth } from '../firebase/config';
-import { useRouter, useSegments } from 'expo-router';
 
 // 1. Creación del contexto
 const VehicleContext = createContext();
@@ -30,25 +29,25 @@ export const VehicleProvider = ({ children }) => {
     }
   }, []);
 
-  // Efecto que carga los vehículos la primera vez que se monta el componente
+  // ✅ ARREGLADO: Efecto que carga los vehículos la primera vez
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         loadVehicles();
       } else {
-        setVehicles([]); // Limpia los vehículos si no hay usuario
+        setVehicles([]);
         setLoading(false);
       }
     });
 
     return () => unsubscribe();
-  }, [loadVehicles]);
+  }, []); // ✅ VACÍO - Solo se ejecuta una vez
 
   // 3. Provee el estado y las funciones a los componentes hijos
   const value = {
     vehicles,
     loading,
-    loadVehicles, // Provee la función para que otros componentes puedan forzar la recarga
+    loadVehicles,
     totalVehicles: vehicles.length,
   };
 

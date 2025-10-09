@@ -173,8 +173,6 @@ export default function DashboardScreen() {
                         <QuickAccessButton icon={ShoppingBag} title="Tienda VIP" subtitle="Productos" onPress={() => router.push('/(tabs)/store')} />
                         <QuickAccessButton icon={MessageCircle} title="Mi Asesor" subtitle="Chat directo" onPress={() => router.push('/(tabs)/chat')} />
                         <QuickAccessButton icon={FileText} title="Documentos" subtitle="Facturas" onPress={() => {}} />
-                        <QuickAccessButton icon={Truck} title="Grúa 24/7" subtitle="Emergencias" onPress={() => router.push('/tow-request')}/>
-
                     </View> 
                 </View> 
 
@@ -187,9 +185,27 @@ export default function DashboardScreen() {
                         }) 
                     ) : ( 
                         <View style={styles.emptyStateCard}> 
-                            {/* ... */}
+                            <CheckCircle color="#10B981" size={48} />
+                            <Text style={styles.emptyStateText}>¡Todo en perfecto estado!</Text>
+                            <Text style={styles.emptyStateSubtitle}>
+                                No tienes servicios activos. Tu vehículo está listo.
+                            </Text>
+                            <View style={styles.emptyStateActions}>
+                                <TouchableOpacity 
+                                    style={styles.emptyStateButtonPrimary}
+                                    onPress={() => router.push('/(tabs)/vehicles')}
+                                >
+                                    <Text style={styles.emptyStateButtonTextPrimary}>Ver Vehículos</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                    style={styles.emptyStateButtonSecondary}
+                                    onPress={() => router.push('/requests/ServiceRequest')}
+                                >
+                                    <Text style={styles.emptyStateButtonTextSecondary}>Agendar Mantenimiento</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View> 
-                    )} 
+                    )}
                 </View> 
             </ScrollView> 
         </SafeAreaView> 

@@ -209,14 +209,16 @@ export default function TowRequestScreen() {
           </View>
           
           <Text style={styles.addressText}>
-            {location ? location.address : 
-             locationError || 
-             'Por favor, activa y permite el acceso a tu GPS.'}
+               {location
+              ? location.address
+              : locationError
+                ? locationError
+                : 'Por favor, activa y permite el acceso a tu GPS.'}
           </Text>
           
           {locationError && (
-            <TouchableOpacity 
-              style={styles.retryButton} 
+            <TouchableOpacity
+              style={styles.retryButton}
               onPress={getCurrentLocation}
             >
               <Text style={styles.retryButtonText}>Reintentar</Text>
@@ -276,25 +278,25 @@ export default function TowRequestScreen() {
             <FileText color={PALETTE.textPrimary} size={22} />
             <Text style={styles.cardTitle}>Descripción del Problema (Opcional)</Text>
           </View>
-          <TextInput 
-            style={styles.textArea} 
-            multiline 
+          <TextInput
+            style={styles.textArea}
+            multiline
             numberOfLines={4}
-            placeholder="Ej: El auto no arranca, creo que es la batería." 
-            placeholderTextColor={PALETTE.textSecondary} 
-            value={formData.description} 
-            onChangeText={(text) => handleChange('description', text)} 
+            placeholder="Ej: El auto no arranca, creo que es la batería."
+            placeholderTextColor={PALETTE.textSecondary}
+            value={formData.description}
+            onChangeText={(text) => handleChange('description', text)}
           />
         </View>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
-            styles.ctaButton, 
-            {backgroundColor: PALETTE.error}, 
+            styles.ctaButton,
+            {backgroundColor: PALETTE.error},
             (!location || isSubmitting || !formData.vehicle_id || !formData.phone_contact) && 
             styles.ctaButtonDisabled
-          ]} 
-          onPress={handleSubmit} 
+          ]}
+          onPress={handleSubmit}
           disabled={!location || isSubmitting || !formData.vehicle_id || !formData.phone_contact}
         >
           {isSubmitting ? (
