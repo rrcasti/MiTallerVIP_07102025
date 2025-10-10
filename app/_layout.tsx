@@ -74,6 +74,7 @@ const AppLayout = () => {
       pathname === '/profile' ||
       pathname === '/memberships' ||
       // ✅ CAMBIO 1: Sin guión
+      pathname === '/health' ||
       pathname.startsWith('/emergency/') ||   // ← ANTES: '/tow-request'
       inTabsGroup;
 

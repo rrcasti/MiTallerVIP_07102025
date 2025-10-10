@@ -1,378 +1,587 @@
-// RUTA: components/health/ManualTracking.jsx
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Camera, Edit3, Save, MapPin } from 'lucide-react-native';
-import CircularGauge from './CircularGauge';
-import AIInsights from './AIInsights';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { Edit3, X, Check, Sparkles, Camera } from 'lucide-react-native';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { db } from '../../firebase/config';
 import * as ImagePicker from 'expo-image-picker';
-import { base44 } from '../../api/base44Client';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { callGeminiAPI } from '../../services/geminiService';
+import { generateMaintenancePrompt } from './maintenanceSchedule';
 
-export default function ManualTracking({ healthData, onSwitchToGPS }) {
-  const [editing, setEditing] = useState(false);
-  const [newKm, setNewKm] = useState(healthData.totalKm.toString());
-  const [uploading, setUploading] = useState(false);
-  const [showAI, setShowAI] = useState(false);
+export default function ManualTracking({ healthData, vehicleId, onUpdate, onAIAnalysis }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [tempKm, setTempKm] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [scanningOdometer, setScanningOdometer] = useState(false);
 
-  const handleSaveKm = () => {
-    const km = parseInt(newKm);
-    if (isNaN(km) || km < 0) {
-      Alert.alert('Error', 'Ingresa un valor válido');
+  const handleStartEdit = () => {
+    setIsEditing(true);
+    setTempKm(healthData.totalKm.toString());
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setTempKm('');
+  };
+
+  const handleSave = async () => {
+    const newKm = parseInt(tempKm) || 0;
+
+    if (newKm < 0) {
+      Alert.alert('Error', 'Los kilómetros no pueden ser negativos');
       return;
     }
 
-    // Aquí guardarías en Firebase
-    Alert.alert('Guardado', `Kilómetros actualizados: ${km}`);
-    setEditing(false);
+    if (newKm < healthData.totalKm) {
+      Alert.alert(
+        'Confirmación',
+        `Estás ingresando menos kilómetros (${newKm.toLocaleString()}) que los actuales (${healthData.totalKm.toLocaleString()}).\n\n¿Estás seguro?`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Confirmar', onPress: () => saveKilometers(newKm) }
+        ]
+      );
+      return;
+    }
+
+    await saveKilometers(newKm);
   };
 
-  const handleTakePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+  const saveKilometers = async (newKm) => {
+    setSaving(true);
     
-    if (status !== 'granted') {
-      Alert.alert('Permiso denegado', 'Necesitamos acceso a la cámara');
-      return;
-    }
+    try {
+      console.log('💾 Guardando kilómetros:', newKm);
 
-    const result = await ImagePicker.launchCameraAsync({
-      quality: 1,
-      base64: true,
-    });
+      const kmDifference = newKm - healthData.totalKm;
+      const newKmThisMonth = Math.max(0, healthData.kmThisMonth + kmDifference);
 
-    if (!result.canceled) {
-      await extractKmFromPhoto(result.assets[0].uri);
+      await updateDoc(doc(db, 'vehicleHealth', vehicleId), {
+        currentKm: newKm,
+        kmThisMonth: newKmThisMonth,
+        lastUpdate: new Date().toISOString(),
+      });
+
+      console.log('✅ Kilómetros guardados exitosamente');
+
+      setIsEditing(false);
+      setTempKm('');
+      
+      if (onUpdate) {
+        onUpdate();
+      }
+
+      Alert.alert('Éxito', `Kilómetros actualizados: ${newKm.toLocaleString()} km`);
+
+    } catch (error) {
+      console.error('❌ Error guardando kilómetros:', error);
+      Alert.alert('Error', 'No se pudieron guardar los kilómetros. Intenta nuevamente.');
     }
+    
+    setSaving(false);
   };
 
-  const extractKmFromPhoto = async (uri) => {
-    setUploading(true);
+  // 🤖 ANALIZAR CON IA - CON CALENDARIO Y CONCEPTOS DE DESGASTE
+  const handleAIAnalysis = async () => {
+    setAnalyzing(true);
+    
     try {
-      // Subir imagen
-      const { file_url } = await base44.integrations.Core.UploadFile({
-        file: uri
+      console.log('🤖 Iniciando análisis con IA...');
+
+      // Obtener historial de servicios
+      const healthDoc = await getDoc(doc(db, 'vehicleHealth', vehicleId));
+      const lastServices = healthDoc.data()?.lastServices || {};
+
+      const daysSinceUpdate = healthData.lastUpdate 
+        ? Math.floor((new Date() - new Date(healthData.lastUpdate)) / (1000 * 60 * 60 * 24))
+        : 999;
+
+      // Generar prompt con calendario de mantenimiento
+      const maintenanceInfo = generateMaintenancePrompt(healthData.totalKm, lastServices);
+
+      const prompt = `
+Eres un mecánico experto certificado. Analiza la salud del vehículo:
+
+📊 DATOS ACTUALES:
+- Kilometraje: ${healthData.totalKm.toLocaleString()} km
+- Días sin actualizar: ${daysSinceUpdate}
+- Km este mes: ${healthData.kmThisMonth.toLocaleString()} km
+- Health score previo: ${healthData.healthScore || 85}/100
+
+${maintenanceInfo}
+
+🎯 INSTRUCCIONES DE ANÁLISIS:
+
+1. HEALTH SCORE (0-100):
+   - Servicios vencidos críticos (failure_prevention): -30 puntos cada uno
+   - Servicios vencidos normales (wear): -10 puntos cada uno
+   - Servicios en warning: -5 puntos cada uno
+   - Kilometraje alto sin mantenimiento: -15 puntos
+   
+2. PRIORIZAR RECOMENDACIONES:
+   a) PRIMERO: Servicios vencidos de "failure_prevention" (URGENTE - evitan fallas catastróficas)
+   b) SEGUNDO: Servicios vencidos de "wear" (Importante - desgaste normal)
+   c) TERCERO: Servicios en zona warning
+   d) CUARTO: Mantenimiento preventivo general
+
+3. ALERTAS CRÍTICAS:
+   - Solo generar alertas para servicios vencidos de categoría "failure_prevention"
+   - Explicar las consecuencias de no atenderlos (fallas, daños mayores)
+
+4. STATUS:
+   - "excellent" (90-100): Todo al día, buen mantenimiento
+   - "good" (70-89): Algunos servicios próximos pero manejable
+   - "fair" (50-69): Servicios vencidos o varios próximos
+   - "poor" (0-49): Servicios críticos vencidos, riesgo de fallas
+
+Responde en JSON (sin markdown ni texto extra):
+{
+  "health_score": número 0-100,
+  "status": "excellent" | "good" | "fair" | "poor",
+  "recommendations": [
+    "1. [URGENTE] Servicio crítico vencido...",
+    "2. [IMPORTANTE] Desgaste normal a atender...",
+    "3. [PREVENTIVO] Próximo mantenimiento..."
+  ],
+  "alerts": [
+    "⚠️ CRÍTICO: Servicio X vencido - Riesgo de falla catastrófica"
+  ],
+  "next_maintenance": {
+    "service": "nombre del servicio más urgente",
+    "km": kilómetros hasta/desde ese servicio (negativo si vencido),
+    "urgency": "low" | "medium" | "high"
+  }
+}
+      `.trim();
+
+      const systemInstruction = `Eres un mecánico automotriz certificado experto en diagnóstico predictivo.
+Entiendes perfectamente la diferencia entre DESGASTE NORMAL (inevitable, mantenimiento regular) y FALLAS/DEFECTOS (prematuros, evitables con mantenimiento).
+Priorizas la seguridad del conductor y la prevención de fallas costosas.
+Respondes en español de forma clara y profesional.`;
+
+      const response = await callGeminiAPI(prompt, systemInstruction);
+      const analysis = JSON.parse(response);
+
+      console.log('✅ Análisis recibido:', analysis);
+
+      // Guardar análisis en Firestore
+      await updateDoc(doc(db, 'vehicleHealth', vehicleId), {
+        healthScore: analysis.health_score,
+        lastAIAnalysis: new Date().toISOString(),
+        aiRecommendations: analysis.recommendations,
+        aiAlerts: analysis.alerts,
       });
 
-      // Extraer km con IA
-      const response = await base44.integrations.Core.InvokeLLM({
-        prompt: `
-Analiza esta foto del odómetro/tablero del vehículo.
-Extrae SOLO el número de kilómetros mostrado.
-Si no puedes leer claramente, devuelve confidence bajo.
-        `,
-        file_urls: [file_url],
-        response_json_schema: {
-          type: "object",
-          properties: {
-            kilometers: { type: "number" },
-            confidence: { type: "number" },
-            readable: { type: "boolean" }
+      // Notificar al componente padre
+      if (onAIAnalysis) {
+        onAIAnalysis(analysis);
+      }
+
+      const alertsText = analysis.alerts && analysis.alerts.length > 0 
+        ? `\n\n${analysis.alerts[0]}` 
+        : '';
+
+      Alert.alert(
+        '✅ Análisis Completado',
+        `Salud: ${analysis.health_score}/100 (${analysis.status.toUpperCase()})\n\n${analysis.recommendations[0]}${alertsText}`,
+        [{ text: 'Ver Detalles', onPress: () => onUpdate() }]
+      );
+
+    } catch (error) {
+      console.error('❌ Error en análisis:', error);
+      Alert.alert('Error', 'No se pudo completar el análisis. Intenta nuevamente.');
+    }
+    
+    setAnalyzing(false);
+  };
+
+  // 📸 ESCANEAR ODÓMETRO CON FOTO
+  const handleScanOdometer = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso denegado', 'Necesitamos permiso para acceder a la cámara.');
+        return;
+      }
+
+      setScanningOdometer(true);
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const imageUri = result.assets[0].uri;
+
+        const prompt = "Extrae el número de kilómetros del odómetro. Responde SOLO el número sin texto adicional.";
+        const systemInstruction = "Eres experto en OCR de odómetros vehiculares.";
+
+        console.log('🖼️ Enviando imagen a Gemini...');
+        
+        // Convertir URI a base64
+        const response = await fetch(imageUri);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        
+        reader.onloadend = async () => {
+          const base64data = reader.result.split(',')[1];
+          
+          try {
+            const geminiResponse = await callGeminiAPI(
+              prompt, 
+              systemInstruction, 
+              base64data, 
+              'image/jpeg'
+            );
+            
+            let extractedKm = parseInt(geminiResponse.replace(/[^0-9]/g, ''));
+
+            if (isNaN(extractedKm) || extractedKm === 0) {
+              Alert.alert('Error', 'No pudimos leer el odómetro. Intenta de nuevo o ingresa manualmente.');
+              setTempKm('');
+            } else {
+              setTempKm(extractedKm.toString());
+              Alert.alert('✅ Escaneo Exitoso', `Se detectaron ${extractedKm.toLocaleString()} km.`);
+            }
+          } catch (error) {
+            console.error('❌ Error procesando imagen:', error);
+            Alert.alert('Error', 'No se pudo procesar la imagen.');
+          } finally {
+            setScanningOdometer(false);
           }
-        }
-      });
-
-      if (response.readable && response.confidence > 70) {
-        setNewKm(response.kilometers.toString());
-        Alert.alert(
-          'Lectura exitosa',
-          `Se detectaron ${response.kilometers} km\n¿Es correcto?`,
-          [
-            { text: 'Sí, guardar', onPress: () => handleSaveKm() },
-            { text: 'Editar', style: 'cancel' }
-          ]
-        );
+        };
+        
+        reader.readAsDataURL(blob);
       } else {
-        Alert.alert(
-          'No se pudo leer',
-          'La imagen no es clara. Por favor ingresa manualmente.'
-        );
+        setScanningOdometer(false);
       }
     } catch (error) {
-      console.error('Error extracting km:', error);
-      Alert.alert('Error', 'No se pudo procesar la imagen');
+      console.error('❌ Error escaneando odómetro:', error);
+      Alert.alert('Error', 'No se pudo escanear el odómetro.');
+      setScanningOdometer(false);
     }
-    setUploading(false);
   };
 
   return (
     <View style={styles.container}>
-      {/* Health Score */}
-      <Animated.View 
-        entering={FadeInDown.duration(800)}
-        style={styles.scoreContainer}
-      >
-        <LinearGradient
-          colors={['#1a1a2e', '#0f0f1a']}
-          style={styles.scoreCard}
-        >
-          <CircularGauge
-            value={healthData.healthScore}
-            maxValue={100}
-            size={200}
-            strokeWidth={20}
-            label="Health Score"
-          />
-          
-          <View style={styles.estimatedBadge}>
-            <Text style={styles.estimatedText}>📊 Basado en datos manuales</Text>
-          </View>
-        </LinearGradient>
-      </Animated.View>
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Edit3 size={20} color="#00d9ff" />
+          <Text style={styles.title}>Actualización Manual</Text>
+        </View>
+      </View>
 
-      {/* KM Input */}
-      <Animated.View 
-        entering={FadeInDown.delay(200).duration(800)}
-        style={styles.inputCard}
-      >
-        <LinearGradient
-          colors={['#00d9ff22', '#00d9ff11']}
-          style={styles.inputGradient}
-        >
-          <Text style={styles.inputLabel}>Kilómetros Actuales</Text>
-          
-          {editing ? (
-            <View style={styles.editContainer}>
+      <View style={styles.card}>
+        {!isEditing ? (
+          <>
+            <View style={styles.kmDisplay}>
+              <Text style={styles.kmValue}>
+                {healthData.totalKm.toLocaleString('es-CL')}
+              </Text>
+              <Text style={styles.kmUnit}>km</Text>
+            </View>
+
+            <Text style={styles.lastUpdate}>
+              Última actualización: {new Date(healthData.lastUpdate).toLocaleDateString('es-CL')}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={handleStartEdit}
+            >
+              <Edit3 size={18} color="#fff" />
+              <Text style={styles.editButtonText}>Actualizar Kilómetros</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <View style={styles.editContainer}>
+            <Text style={styles.editLabel}>Ingresa los kilómetros actuales:</Text>
+            
+            <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                value={newKm}
-                onChangeText={setNewKm}
+                value={tempKm}
+                onChangeText={setTempKm}
                 keyboardType="numeric"
-                placeholder="Ej: 45000"
-                placeholderTextColor="#666"
+                placeholder="Ej: 85000"
+                placeholderTextColor="#64748B"
+                editable={!saving && !scanningOdometer}
+                autoFocus
               />
+              <Text style={styles.inputUnit}>km</Text>
               <TouchableOpacity
-                style={styles.saveButton}
-                onPress={handleSaveKm}
+                style={styles.scanOdometerButton}
+                onPress={handleScanOdometer}
+                disabled={scanningOdometer || saving}
               >
-                <Save size={20} color="#fff" />
+                {scanningOdometer ? (
+                  <ActivityIndicator color="#0F172A" size="small" />
+                ) : (
+                  <Camera size={20} color="#0F172A" />
+                )}
               </TouchableOpacity>
             </View>
-          ) : (
-            <View style={styles.displayContainer}>
-              <Text style={styles.kmValue}>
-                {healthData.totalKm.toLocaleString()} km
-              </Text>
+
+            <View style={styles.buttonRow}>
               <TouchableOpacity
-                style={styles.editButton}
-                onPress={() => setEditing(true)}
+                style={[styles.button, styles.cancelButton]}
+                onPress={handleCancel}
+                disabled={saving || scanningOdometer}
               >
-                <Edit3 size={20} color="#00d9ff" />
+                <X size={18} color="#64748B" />
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.button, styles.saveButton]}
+                onPress={handleSave}
+                disabled={saving || scanningOdometer}
+              >
+                {saving ? (
+                  <Text style={styles.saveButtonText}>Guardando...</Text>
+                ) : (
+                  <>
+                    <Check size={18} color="#0F172A" />
+                    <Text style={styles.saveButtonText}>Guardar</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
-          )}
 
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={styles.cameraButton}
-              onPress={handleTakePhoto}
-              disabled={uploading}
-            >
-              <Camera size={20} color="#fff" />
-              <Text style={styles.buttonText}>
-                {uploading ? 'Procesando...' : 'Foto del Odómetro'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.gpsButton}
-              onPress={onSwitchToGPS}
-            >
-              <MapPin size={20} color="#00ff88" />
-              <Text style={styles.buttonText}>Activar GPS</Text>
-            </TouchableOpacity>
+            {tempKm && parseInt(tempKm) >= 0 && (
+              <View style={styles.preview}>
+                <Text style={styles.previewLabel}>Vista previa:</Text>
+                <Text style={styles.previewValue}>
+                  {parseInt(tempKm).toLocaleString('es-CL')} km
+                </Text>
+                {parseInt(tempKm) > healthData.totalKm && (
+                  <Text style={styles.previewDiff}>
+                    +{(parseInt(tempKm) - healthData.totalKm).toLocaleString('es-CL')} km
+                  </Text>
+                )}
+                {parseInt(tempKm) < healthData.totalKm && (
+                  <Text style={styles.previewNegativeDiff}>
+                    {(parseInt(tempKm) - healthData.totalKm).toLocaleString('es-CL')} km
+                  </Text>
+                )}
+              </View>
+            )}
           </View>
-        </LinearGradient>
-      </Animated.View>
+        )}
+      </View>
 
-      {/* Stats */}
-      <Animated.View 
-        entering={FadeInDown.delay(400).duration(800)}
-        style={styles.statsContainer}
+      {/* BOTÓN DE ANÁLISIS IA - VISIBLE SIEMPRE */}
+      <TouchableOpacity
+        style={styles.aiAnalysisButton}
+        onPress={handleAIAnalysis}
+        disabled={analyzing}
       >
-        <View style={styles.statBox}>
-          <Text style={styles.statLabel}>Este mes</Text>
-          <Text style={styles.statValue}>{healthData.kmThisMonth}</Text>
-        </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statLabel}>Promedio</Text>
-          <Text style={styles.statValue}>{healthData.avgKmPerMonth}</Text>
-        </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statLabel}>Próximo servicio</Text>
-          <Text style={styles.statValue}>{healthData.nextOilChange} km</Text>
-        </View>
-      </Animated.View>
+        {analyzing ? (
+          <>
+            <ActivityIndicator color="#0F172A" size="small" />
+            <Text style={styles.aiAnalysisButtonText}>Analizando...</Text>
+          </>
+        ) : (
+          <>
+            <Sparkles size={18} color="#0F172A" />
+            <Text style={styles.aiAnalysisButtonText}>Análisis Predictivo de IA</Text>
+          </>
+        )}
+      </TouchableOpacity>
 
-      {/* AI Insights */}
-      <Animated.View entering={FadeInDown.delay(600).duration(800)}>
-        <TouchableOpacity
-          style={styles.aiButton}
-          onPress={() => setShowAI(!showAI)}
-        >
-          <Text style={styles.aiButtonText}>
-            {showAI ? 'Ocultar' : 'Ver'} Análisis IA
-          </Text>
-        </TouchableOpacity>
-
-        {showAI && <AIInsights healthData={healthData} mode="manual" />}
-      </Animated.View>
+      <View style={styles.infoBox}>
+        <Text style={styles.infoText}>
+          💡 La IA diferencia entre desgaste normal (mantenimiento regular) y fallas/defectos (problemas prematuros).
+        </Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
+    marginBottom: 24,
   },
-  scoreContainer: {
-    marginBottom: 20,
-  },
-  scoreCard: {
-    borderRadius: 24,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  estimatedBadge: {
-    marginTop: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: '#ffa50022',
-    borderRadius: 12,
-  },
-  estimatedText: {
-    color: '#ffa500',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  inputCard: {
-    marginBottom: 20,
-  },
-  inputGradient: {
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#00d9ff33',
-  },
-  inputLabel: {
-    fontSize: 14,
-    color: '#999',
-    marginBottom: 12,
-  },
-  editContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  saveButton: {
-    backgroundColor: '#00d9ff',
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  displayContainer: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
-  kmValue: {
-    fontSize: 32,
-    fontWeight: '800',
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
     color: '#fff',
-    letterSpacing: -1,
   },
-  editButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#1a1a1a',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionButtons: {
-    gap: 12,
-  },
-  cameraButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#9b59b6',
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
-  },
-  gpsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1a1a1a',
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
+  card: {
+    backgroundColor: '#1E293B',
+    borderRadius: 16,
+    padding: 20,
     borderWidth: 1,
-    borderColor: '#00ff88',
+    borderColor: '#00d9ff33',
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  statsContainer: {
+  kmDisplay: {
     flexDirection: 'row',
-    gap: 12,
+    alignItems: 'baseline',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  kmValue: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#00d9ff',
+  },
+  kmUnit: {
+    fontSize: 20,
+    color: '#94A3B8',
+    marginLeft: 8,
+  },
+  lastUpdate: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
     marginBottom: 20,
   },
-  statBox: {
-    flex: 1,
-    backgroundColor: '#1a1a1a',
+  editButton: {
+    backgroundColor: '#00d9ff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#333',
+    borderRadius: 12,
   },
-  statLabel: {
-    fontSize: 12,
-    color: '#999',
+  editButtonText: {
+    color: '#0F172A',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  editContainer: {
+    gap: 16,
+  },
+  editLabel: {
+    fontSize: 15,
+    color: '#94A3B8',
+    marginBottom: 8,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#00d9ff',
+    paddingHorizontal: 16,
+  },
+  input: {
+    flex: 1,
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#fff',
+    paddingVertical: 16,
+  },
+  inputUnit: {
+    fontSize: 18,
+    color: '#64748B',
+    marginLeft: 8,
+  },
+  scanOdometerButton: {
+    backgroundColor: '#00d9ff',
+    padding: 10,
+    borderRadius: 8,
+    marginLeft: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  button: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 16,
+    borderRadius: 12,
+  },
+  cancelButton: {
+    backgroundColor: '#334155',
+  },
+  cancelButtonText: {
+    color: '#94A3B8',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  saveButton: {
+    backgroundColor: '#00d9ff',
+  },
+  saveButtonText: {
+    color: '#0F172A',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  preview: {
+    backgroundColor: '#00d9ff11',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#00d9ff33',
+  },
+  previewLabel: {
+    fontSize: 13,
+    color: '#64748B',
     marginBottom: 4,
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
+  previewValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#00d9ff',
   },
-  aiButton: {
-    backgroundColor: '#9b59b6',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  aiButtonText: {
-    color: '#fff',
+  previewDiff: {
     fontSize: 14,
-    fontWeight: '600',
+    color: '#10B981',
+    marginTop: 4,
+  },
+  previewNegativeDiff: {
+    fontSize: 14,
+    color: '#EF4444',
+    marginTop: 4,
+  },
+  aiAnalysisButton: {
+    backgroundColor: '#00d9ff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  aiAnalysisButtonText: {
+    color: '#0F172A',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  infoBox: {
+    backgroundColor: '#1E293B',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#00d9ff',
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#94A3B8',
+    lineHeight: 20,
   },
 });
