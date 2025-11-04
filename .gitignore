@@ -3,6 +3,10 @@
 # dependencies
 node_modules/
 
+# Ignorar archivos sensibles y de ambiente
+.env
+.env.*
+
 # Expo
 .expo/
 dist/

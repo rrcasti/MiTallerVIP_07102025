@@ -2,7 +2,19 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Activity, ChevronRight } from 'lucide-react-native';
 
-export default function HealthPreview({ onPress }) {
+export default function HealthPreview({ healthData, onPress }) {
+  // ✅ Usar datos reales o valores por defecto
+  const totalKm = healthData?.totalKm || 0;
+  const healthScore = healthData?.healthScore || 85;
+  const nextService = healthData?.nextOilChange 
+    ? (healthData.nextOilChange - totalKm) 
+    : 5000;
+
+  // Formatear números con comas
+  const formatNumber = (num) => {
+    return Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  };
+
   return (
     <TouchableOpacity 
       style={styles.container} 
@@ -22,20 +34,26 @@ export default function HealthPreview({ onPress }) {
           <ChevronRight size={20} color="#94A3B8" />
         </View>
 
-        {/* Mini stats */}
+        {/* Mini stats - USANDO DATOS REALES */}
         <View style={styles.stats}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>15,234</Text>
+            <Text style={styles.statValue}>
+              {formatNumber(totalKm)}
+            </Text>
             <Text style={styles.statLabel}>km totales</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>92</Text>
+            <Text style={styles.statValue}>
+              {healthScore}
+            </Text>
             <Text style={styles.statLabel}>health score</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>2,500</Text>
+            <Text style={styles.statValue}>
+              {formatNumber(nextService)}
+            </Text>
             <Text style={styles.statLabel}>próximo servicio</Text>
           </View>
         </View>

@@ -1,7 +1,6 @@
-// RUTA: app/(tabs)/chat.tsx (o chat.jsx)
+// RUTA: app/(tabs)/chat.tsx
 
-import React, { useEffect, useState } from 'react';
-// --- CAMBIO ESTÉTICO: Se añaden los componentes para el layout y el teclado ---
+import React, { useEffect, useState, useRef } from 'react'; // ✅ CAMBIO 1: Agregado useRef
 import { 
     View, 
     FlatList, 
@@ -11,61 +10,109 @@ import {
     Platform, 
     ImageBackground 
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native'; 
 import ChatHeader from '../../components/chat/ChatHeader';
 import ChatInput from '../../components/chat/ChatInput';
 import ChatMessage from '../../components/chat/ChatMessage';
 import EmptyChat from '../../components/chat/EmptyChat';
+import VideoModal from '../../components/chat/VideoModal';
+import ImageModal from '../../components/chat/ImageModal';
 import { auth } from '../../firebase/config';
-import { findOrCreateConversation, listenToMessages, sendMessage } from '../../services/chatService';
+import { 
+    findOrCreateConversation, 
+    listenToMessages, 
+    sendMessage,
+    markConversationAsReadByClient
+} from '../../services/chatService';
 
-// --- NO SE TOCA NINGUNA FUNCIÓN NI LÓGICA ---
 export default function ChatScreen() {
   const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loadingConversation, setLoadingConversation] = useState(true);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const flatListRef = useRef(null); // ✅ CAMBIO 2: Crear ref para FlatList
+  const isFocused = useIsFocused();
 
   useEffect(() => {
     if (!auth.currentUser) return;
     const userId = auth.currentUser.uid;
+    
+    let unsubscribe = null;
+
     findOrCreateConversation(userId)
       .then(conv => {
         setConversation(conv);
         setLoadingConversation(false);
-        const unsubscribe = listenToMessages(conv.id, setMessages);
-        return unsubscribe;
-      })
-      .then(unsubscribe => {
-        return () => unsubscribe && unsubscribe();
+        unsubscribe = listenToMessages(conv.id, setMessages);
       })
       .catch(error => {
         console.error('Error cargando conversación:', error);
         setLoadingConversation(false);
       });
+
+    return () => {
+      if (unsubscribe) {
+        console.log("[ChatScreen]: Desuscribiendo de mensajes...");
+        unsubscribe();
+      }
+    };
   }, []);
+
+  useEffect(() => {
+    if (isFocused && conversation && messages.length > 0 && auth.currentUser) {
+      console.log("[ChatScreen]: Pantalla en foco. Marcando mensajes como leídos...");
+      markConversationAsReadByClient(conversation.id, messages, auth.currentUser.uid);
+    }
+  }, [isFocused, messages, conversation]);
+
+  // ✅ CAMBIO 3: Scroll automático cuando llega un mensaje nuevo
+  useEffect(() => {
+    if (messages.length > 0 && flatListRef.current) {
+      // Pequeño delay para asegurar que el mensaje se haya renderizado
+      setTimeout(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 100);
+    }
+  }, [messages.length]); // Solo cuando cambia la cantidad de mensajes
 
   const handleSendMessage = async (messageData) => {
     if (!conversation) return;
     await sendMessage(conversation.id, messageData);
+    // El scroll automático se activará por el useEffect de arriba
+  };
+
+  const handleVideoPress = (videoUrl) => {
+    console.log('[ChatScreen] Abriendo video en modal:', videoUrl);
+    setSelectedVideo(videoUrl);
+  };
+
+  const handleImagePress = (imageUrl) => {
+    console.log('[ChatScreen] Abriendo imagen en modal:', imageUrl);
+    setSelectedImage(imageUrl);
   };
 
   const renderItem = ({ item }) => {
     const isMine = item.uid === auth.currentUser.uid;
-    return <ChatMessage message={item} isMine={isMine} />;
+    return (
+      <ChatMessage 
+        message={item} 
+        isMine={isMine} 
+        onVideoPress={handleVideoPress}
+        onImagePress={handleImagePress}
+      />
+    );
   };
 
-  // --- SOLO SE MODIFICA LA ESTRUCTURA VISUAL (JSX) ---
   return (
     <SafeAreaView style={styles.container}>
-      {/* --- CAMBIO ESTÉTICO: Se añade un fondo con patrón --- */}
       <ImageBackground 
-        source={require('../../assets/chat-background.png')} // Asegúrate de tener esta imagen en tus assets
+        source={require('../../assets/chat-background.png')}
         style={styles.backgroundImage}
       >
-        {/* --- CAMBIO ESTÉTICO: Se añade el KeyboardAvoidingView para el comportamiento del teclado --- */}
         <KeyboardAvoidingView
           style={styles.keyboardAvoidingContainer}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          //keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 60} // Puedes ajustar este valor
         >
           <ChatHeader activeRepairsCount={0} />
           
@@ -74,12 +121,15 @@ export default function ChatScreen() {
               <EmptyChat />
             ) : (
               <FlatList
+                ref__={flatListRef} // ✅ CAMBIO 4: Conectar la ref
                 data={messages}
                 keyExtractor={item => item.id}
                 renderItem={renderItem}
-                inverted // Mantiene los mensajes nuevos abajo
-                // --- CAMBIO ESTÉTICO: Se ajusta el estilo para que la lista crezca desde abajo ---
+                inverted
                 contentContainerStyle={styles.listContentContainer}
+                maintainVisibleContentPosition={{
+                  minIndexForVisible: 0,
+                }}
               />
             )}
           </View>
@@ -87,13 +137,27 @@ export default function ChatScreen() {
           <ChatInput onSendMessage={handleSendMessage} />
         </KeyboardAvoidingView>
       </ImageBackground>
+
+      <VideoModal
+        visible={!!selectedVideo}
+        videoUrl={selectedVideo}
+        onClose={() => setSelectedVideo(null)}
+      />
+
+      <ImageModal
+        visible={!!selectedImage}
+        imageUrl={selectedImage}
+        onClose={() => setSelectedImage(null)}
+      />
     </SafeAreaView>
   );
 }
 
-// --- SOLO SE AÑADEN ESTILOS PARA LOS NUEVOS COMPONENTES VISUALES ---
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F172A' },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#0F172A' 
+  },
   backgroundImage: {
     flex: 1,
   },
@@ -105,7 +169,6 @@ const styles = StyleSheet.create({
   },
   listContentContainer: {
     paddingHorizontal: 10,
-    flexGrow: 1, // Permite que el contenido crezca
-    justifyContent: 'flex-end', // Alinea los mensajes en la parte inferior
+    paddingVertical: 10,
   },
 });

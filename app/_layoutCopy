@@ -1,0 +1,290 @@
+// Ruta: app/_layout.tsx
+import React, { useEffect, useRef } from 'react'; // Añadir useRef si no estaba
+import { AuthProvider, useAuth } from '../context/AuthContext';
+import { useRouter, useSegments, usePathname } from 'expo-router';
+import { Stack } from 'expo-router';
+import { Alert, Platform, TouchableOpacity, AppState } from 'react-native'; // Asegúrate que AppState esté importado
+import { Edit } from 'lucide-react-native';
+import { VehicleProvider } from '../context/VehicleContext.jsx';
+import { MembershipProvider } from '../context/MembershipContext';
+import { HealthTrackingProvider } from '../context/HealthTrackingContext';
+import { CartProvider } from '../context/CartContext'; // Asegúrate de la ruta
+import { InAppNotificationProvider, useInAppNotification } from '../components/context/InAppNotificationContext'; // Asegúrate de la ruta
+
+// --- NUEVAS IMPORTACIONES PARA NOTIFICACIONES ---
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import { savePushToken } from '../services/userService'; // Asumiendo que esta función existe
+
+// --- LÓGICA PARA PEDIR PERMISOS Y OBTENER EL TOKEN ---
+Notifications.setNotificationHandler({
+  handleNotification: async (notification) => {
+      const appState = AppState.currentState;
+      const shouldShow = appState !== 'active';
+      console.log(`handleNotification: AppState=${appState}, ShouldShowSystemNotification=${shouldShow}`);
+      return {
+          shouldShowAlert: shouldShow, // Permitir alerta del sistema solo si la app NO está activa
+          shouldPlaySound: true,
+          shouldSetBadge: false,
+      };
+  }
+});
+
+
+async function registerForPushNotificationsAsync(userUid) {
+  console.log('🔔 Iniciando registro de push token para usuario:', userUid);
+
+  let token;
+  if (Device.isDevice) {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== 'granted') {
+      console.log('⚠️ Solicitando permisos de notificación...');
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== 'granted') {
+      console.warn('❌ Permiso de notificación denegado');
+      return;
+    }
+
+    try {
+        token = (await Notifications.getExpoPushTokenAsync({
+            projectId: process.env.EXPO_PUBLIC_PROJECT_ID, // Asegúrate que esta var exista
+        })).data;
+        console.log("✅ Expo Push Token obtenido:", token);
+        if (userUid && token) {
+            await savePushToken(userUid, token); // Guarda el token en Firestore
+            console.log("✅ Push Token guardado para el usuario:", userUid);
+        }
+    } catch (e) {
+        console.error("❌ Error obteniendo el Expo Push Token:", e);
+        return;
+    }
+
+  } else {
+    console.log("⚠️ Debe usar un dispositivo físico para recibir notificaciones push.");
+  }
+
+  // Configurar canal de Android
+  if (Platform.OS === 'android') {
+    try {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'default',
+          importance: Notifications.AndroidImportance.MAX, // ¡CLAVE para imágenes!
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+        });
+        console.log("✅ Canal 'default' de Android configurado");
+    } catch (e) {
+        console.error("❌ Error configurando canal de Android:", e);
+    }
+  }
+
+  return token;
+}
+
+const AppLayout = () => {
+  const { user, isLoading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { showInAppNotification, showActionRequiredCard } = useInAppNotification(); // Obtener funciones del contexto
+
+  // useEffect para redirección (sin cambios)
+  useEffect(() => {
+    if (isLoading) return;
+    const inTabsGroup = segments[0] === '(tabs)';
+
+    const isAllowedRoute =
+      pathname.startsWith('/vehicles/') ||
+      pathname.startsWith('/requests/') ||
+      pathname.startsWith('/profile') ||
+      pathname === '/memberships' ||
+      pathname === '/health' ||
+      pathname === '/documents' ||
+      pathname.startsWith('/emergency/') ||
+      inTabsGroup;
+
+    const isPublicRoute = pathname === '/login';
+
+    console.log(`🔐 Auth State - User: ${user ? user.email : 'null'}, Segments: [${segments.join(', ')}]`);
+
+    if (!isLoading) {
+        if (user && !isAllowedRoute && !isPublicRoute) {
+          console.log('➡️ Redirigiendo a tabs (usuario autenticado)');
+          router.replace('/(tabs)');
+        } else if (!user && !isPublicRoute) {
+           console.log('➡️ Redirigiendo a login (no hay usuario)');
+           router.replace('/login');
+        }
+    }
+  }, [user, isLoading, segments, pathname, router]);
+
+
+  // --- 👇👇👇 USE EFFECT DE LISTENERS CORREGIDO FINALMENTE 👇👇👇 ---
+  useEffect(() => {
+    // Declaración de variables que contendrán el objeto de suscripción
+    let notificationSubscription = null;
+    let responseSubscription = null;
+
+    if (user?.uid) { // Asegurarse que hay usuario antes de suscribir
+      console.log('👤 Usuario autenticado, registrando push token...');
+      registerForPushNotificationsAsync(user.uid);
+
+      console.log('🎧 Configurando listeners de notificaciones...');
+
+      // 1. Listener para notificaciones recibidas (Devuelve objeto de suscripción)
+      notificationSubscription = Notifications.addNotificationReceivedListener(notification => {
+        console.log('📨 Notificación recibida (foreground):', {
+          title: notification.request.content.title,
+          body: notification.request.content.body,
+          data: notification.request.content.data,
+        });
+
+        const notificationData = notification.request.content.data || {};
+        const notificationType = notificationData.type;
+        const appState = AppState.currentState;
+
+        console.log('🔍 Tipo:', notificationType, 'AppState:', appState);
+
+        if (appState === 'active') { // Solo procesar si la app está activa
+            const fullNotification = {
+              title: notification.request.content.title,
+              body: notification.request.content.body,
+              data: notificationData,
+              id: notificationData.notificationId || notification.request.identifier,
+              type: notificationType,
+            };
+
+            const actionRequiredTypes = ['budget_approval', 'invoice_approval', 'tow_assigned'];
+
+            if (actionRequiredTypes.includes(notificationType)) {
+              console.log('🔴 ACCIÓN REQUERIDA -> showActionRequiredCard');
+              showActionRequiredCard(fullNotification);
+            } else {
+              console.log('🔔 GENERAL/PROMO -> showInAppNotification');
+              showInAppNotification(fullNotification);
+            }
+        } else {
+            console.log("📱 App inactiva/background. Dejando al handler/sistema.");
+        }
+      });
+
+      // 2. Listener para cuando el usuario toca una notificación (Devuelve objeto de suscripción)
+      responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
+        console.log('👆 Usuario tocó una notificación:', {
+          notification: response.notification.request.content,
+          actionIdentifier: response.actionIdentifier,
+        });
+
+        const data = response.notification.request.content.data || {};
+        const notificationType = data.type;
+
+        console.log('🎯 Navegando según tipo:', notificationType);
+
+        // --- Tu lógica de navegación (switch) ---
+        try {
+            switch (notificationType) {
+              case 'promotion':
+                router.push('/documents');
+                break;
+              case 'budget_approval':
+              case 'invoice_approval':
+                if (data.relatedId) {
+                  router.push(`/documents/approval?documentId=${data.relatedId}`);
+                } else {
+                  router.push('/documents');
+                }
+                break;
+              case 'service_update':
+              case 'vehicle_ready':
+                router.push('/(tabs)/activity');
+                break;
+              case 'new_message':
+                router.push('/(tabs)/chat');
+                break;
+              case 'tow_assigned':
+                router.push('/emergency/towRequest');
+                break;
+              default:
+                router.push('/(tabs)/activity');
+                break;
+            }
+        } catch (navError) {
+            console.error("❌ Error durante la navegación desde notificación:", navError);
+        }
+        // --- Fin lógica de navegación ---
+      });
+
+    } // Fin del if (user?.uid)
+
+    // Cleanup: Se ejecuta cuando el user cambia (logout) o el componente se desmonta
+    return () => {
+      console.log('🧹 Limpiando listeners de notificaciones...');
+
+      // 👇👇👇 CORRECCIÓN CRÍTICA APLICADA AQUÍ 👇👇👇
+      if (notificationSubscription) {
+        // Llama al método .remove() de la suscripción (solución moderna de Expo)
+        notificationSubscription.remove();
+      }
+      if (responseSubscription) {
+        responseSubscription.remove();
+      }
+      // 👆👆👆 FIN CORRECCIÓN 👆👆👆
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, showInAppNotification, showActionRequiredCard, router]);
+
+
+  // --- Renderizado del Layout ---
+  if (isLoading) {
+      return null;
+  }
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      {/* Tus Stack.Screen existentes (sin cambios) */}
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="vehicles/VehiclesForm" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="vehicles/[id]" />
+      <Stack.Screen name="documents/index" options={{ presentation: 'card' }} />
+      <Stack.Screen name="documents/approval" />
+      <Stack.Screen name="FileViewer" options={{ headerShown: false }} />
+      <Stack.Screen name="health" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="profile/index" />
+      <Stack.Screen name="profile/settings" />
+      <Stack.Screen name="login" />
+      <Stack.Screen name="requests/ServiceRequest" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="chat" />
+      <Stack.Screen name="towRequest" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="emergency/towRequest" />
+      <Stack.Screen name="store/cart" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="promotions/view" />
+      <Stack.Screen name="memberships" />
+      <Stack.Screen name="vehicles/new" />
+    </Stack>
+  );
+}
+
+export default function RootLayout() {
+  console.log('🚀 RootLayout montado');
+
+  return (
+  <InAppNotificationProvider>
+    <CartProvider>
+      <AuthProvider>
+        <VehicleProvider>
+          <MembershipProvider>
+            <HealthTrackingProvider>
+              <AppLayout />
+            </HealthTrackingProvider>
+          </MembershipProvider>
+        </VehicleProvider>
+      </AuthProvider>
+    </CartProvider>
+  </InAppNotificationProvider>
+  );
+}

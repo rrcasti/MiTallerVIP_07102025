@@ -1,35 +1,27 @@
-// Ruta: services/paymentService.ts
 import * as WebBrowser from 'expo-web-browser';
 
-// VERIFICADO: Tu Access Token de PRODUCCIÓN está insertado.
 const MERCADOPAGO_ACCESS_TOKEN = 'APP_USR-2037119821110626-100819-9140f365310f1ff4688d7be550e6cfc1-2913071083';
 
-interface PaymentItem {
-  title: string;
-  quantity: number;
-  unit_price: number;
-  currency_id?: string;
-  description?: string;
-}
-
-export const createPaymentPreference = async (item: PaymentItem) => {
+export const startMercadoPagoCheckout = async (items, totalPrice) => {
   try {
+    const preferenceItems = items.map(item => ({
+      title: item.name,
+      quantity: item.quantity,
+      unit_price: item.price,
+      currency_id: 'ARS',
+      description: item.name,
+    }));
+
     const preference = {
-      items: [
-        {
-          title: item.title,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          currency_id: item.currency_id || 'ARS',
-          description: item.description || '',
-        },
-      ],
+      items: preferenceItems,
+      payer: {},
       back_urls: {
-        success: 'mitallervip://payment/success', // Deep Link de producción
+        success: 'mitallervip://payment/success',
         failure: 'mitallervip://payment/failure',
         pending: 'mitallervip://payment/pending',
       },
       auto_return: 'approved',
+      notification_url: 'https://webhook.site/YOUR_WEBHOOK_ENDPOINT',
     };
 
     const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
@@ -44,14 +36,21 @@ export const createPaymentPreference = async (item: PaymentItem) => {
     const data = await response.json();
 
     if (data.init_point) {
-      await WebBrowser.openBrowserAsync(data.init_point);
+      const result = await WebBrowser.openBrowserAsync(data.init_point);
+      
+      if (result.type === 'cancel') {
+        return { status: 'cancelled', message: 'El proceso de pago fue cancelado por el usuario.' };
+      }
+      
+      return { status: 'approved', transactionId: data.id || 'N/A' };
+
     } else {
       console.error('Error de Mercado Pago:', data);
-      throw new Error(data.message || 'No se pudo obtener la URL de pago.');
+      return { status: 'rejected', message: data.message || 'No se pudo obtener la URL de pago.' };
     }
 
   } catch (error) {
-    console.error('Error al crear la preferencia de pago:', error);
-    throw new Error('No se pudo iniciar el proceso de pago.');
+    console.error('Error al iniciar el checkout de Mercado Pago:', error);
+    return { status: 'rejected', message: 'No se pudo iniciar el proceso de pago.' };
   }
 };

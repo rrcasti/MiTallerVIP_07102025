@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Act
 import { useRouter } from 'expo-router';
 import { useMembership } from '../../context/MembershipContext';
 import { useVehicles } from '../../context/VehicleContext';
+import { useCart } from '../../context/CartContext';
 import { getActiveProducts, getRecommendedProducts } from '../../services/productService';
 import { Crown, Lock, ShoppingBag, Car, Star, Search, Sparkles } from 'lucide-react-native';
 
@@ -18,12 +19,15 @@ const PALETTE = {
 const filterCategories = [
   { id: 'recommended', title: 'Para tu auto' },
   { id: 'all', title: 'Todos' },
-  { id: 'cuidado_estetico', title: 'Cuidado y Estética' },
-  { id: 'rendimiento', title: 'Rendimiento' },
-  { id: 'accesorios', title: 'Accesorios' },
+  { id: 'mantenimiento', title: '🔧 Mantenimiento' },
+  { id: 'cuidado_estetico', title: '✨ Cuidado y Estética' },
+  { id: 'rendimiento', title: '⚡ Rendimiento' },
+  { id: 'accesorios', title: '🎨 Accesorios' },
+  { id: 'tecnologia', title: '📱 Tecnología' },
+  { id: 'seguridad', title: '🛡️ Seguridad' },
+  { id: 'herramientas', title: '🔨 Herramientas' }
 ];
 
-// --- Componente para Acceso Denegado ---
 const AccessDenied = () => {
   const router = useRouter();
   return (
@@ -39,56 +43,80 @@ const AccessDenied = () => {
   );
 };
 
-// --- Componente para Tarjeta de Producto ---
 const ProductCard = ({ product }) => {
+  const { addItem } = useCart();
   const regularPrice = product.price || 0;
-  const vipPrice = product.vip_price || regularPrice;
+  const vipPrice = product.vip_price > 0 && product.vip_price < regularPrice ? product.vip_price : regularPrice;
   const hasDiscount = vipPrice < regularPrice;
   const discount = hasDiscount ? Math.round(((regularPrice - vipPrice) / regularPrice) * 100) : 0;
+
+  const handleAddToCart = (e) => {
+    e.stopPropagation();
+    addItem(product);
+  };
+
   return (
     <View style={styles.productCard}>
       <Image source={{ uri: product.imageUrl }} style={styles.productImage} />
       {hasDiscount && (<View style={styles.discountBadge}><Text style={styles.discountText}>-{discount}% VIP</Text></View>)}
       <View style={styles.productInfo}>
         <Text style={styles.productName}>{product.name}</Text>
-        {product.description && <Text style={styles.productDescription}>{product.description}</Text>}
+        {product.description && <Text style={styles.productDescription} numberOfLines={2}>{product.description}</Text>}
         <View style={styles.priceContainer}>
           {hasDiscount && <Text style={styles.productPriceStriked}>${regularPrice.toLocaleString('es-AR')}</Text>}
           <Text style={styles.productPrice}>${vipPrice.toLocaleString('es-AR')}</Text>
         </View>
-        <TouchableOpacity style={styles.addButton}><ShoppingBag color={PALETTE.background} size={16} /><Text style={styles.addButtonText}>Agregar</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.addButton} onPress={handleAddToCart}>
+          <ShoppingBag color={PALETTE.background} size={16} /><Text style={styles.addButtonText}>Agregar</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
 };
 
-// --- Componente para Registrar Vehículo ---
 const RegisterVehiclePrompt = () => {
   const router = useRouter();
   return (
     <View style={styles.promptCard}>
-        <Car size={32} color={PALETTE.accent} />
-        <Text style={styles.promptTitle}>Recomendaciones para tu auto</Text>
-        <Text style={styles.promptSubtitle}>Registra tu vehículo para ver productos seleccionados especialmente para ti.</Text>
-        <TouchableOpacity style={styles.ctaButton} onPress={() => router.push('/(tabs)/vehicles')}><Text style={styles.ctaButtonText}>Registrar mi Vehículo</Text></TouchableOpacity>
+      <Car size={32} color={PALETTE.accent} />
+      <Text style={styles.promptTitle}>Recomendaciones para tu auto</Text>
+      <Text style={styles.promptSubtitle}>Registra tu vehículo para ver productos seleccionados especialmente para ti.</Text>
+      <TouchableOpacity style={styles.ctaButton} onPress={() => router.push('/(tabs)/vehicles')}><Text style={styles.ctaButtonText}>Registrar mi Vehículo</Text></TouchableOpacity>
     </View>
   );
 };
 
-// --- Componente para Banner de Bienvenida ---
 const WelcomeBanner = ({ vehicle }) => (
-    <View style={styles.welcomeBanner}>
-        <Sparkles size={24} color={PALETTE.accent} />
-        <View style={{flex: 1, marginLeft: 16}}>
-            <Text style={styles.promptTitle}>Recomendaciones Personalizadas</Text>
-            <Text style={styles.promptSubtitle}>
-                ¡Bienvenido! Hemos seleccionado los mejores productos para tu {vehicle.brand} {vehicle.model}.
-            </Text>
-        </View>
+  <View style={styles.welcomeBanner}>
+    <Sparkles size={24} color={PALETTE.accent} />
+    <View style={{flex: 1, marginLeft: 16}}>
+      <Text style={styles.promptTitle}>Recomendaciones Personalizadas</Text>
+      <Text style={styles.promptSubtitle}>
+        ¡Bienvenido! Hemos seleccionado los mejores productos para tu {vehicle.brand} {vehicle.model}.
+      </Text>
     </View>
+  </View>
 );
 
-// --- Componente Principal de la Página ---
+const CartFab = () => {
+  const { totalItems } = useCart();
+  const router = useRouter();
+
+  if (totalItems === 0) return null;
+
+  return (
+    <TouchableOpacity
+      style={styles.cartFab}
+      onPress={() => router.push('/store/cart')}
+    >
+      <ShoppingBag color={PALETTE.background} size={24} />
+      <View style={styles.cartBadge}>
+        <Text style={styles.cartBadgeText}>{totalItems}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
 export default function VipStoreScreen() {
   const router = useRouter();
   const { membership, isLoading: isMembershipLoading } = useMembership();
@@ -163,14 +191,14 @@ export default function VipStoreScreen() {
         )}
 
         <View style={styles.searchContainer}>
-            <Search color={PALETTE.textSecondary} size={20} />
-            <TextInput
-                style={styles.searchInput}
-                placeholder="Buscar productos exclusivos..."
-                placeholderTextColor={PALETTE.textSecondary}
-                value={searchTerm}
-                onChangeText={setSearchTerm}
-            />
+          <Search color={PALETTE.textSecondary} size={20} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar productos exclusivos..."
+            placeholderTextColor={PALETTE.textSecondary}
+            value={searchTerm}
+            onChangeText={setSearchTerm}
+          />
         </View>
 
         <View style={{ marginBottom: 32 }}>
@@ -206,6 +234,7 @@ export default function VipStoreScreen() {
           </View>
         )}
       </ScrollView>
+      <CartFab />
     </SafeAreaView>
   );
 }
@@ -220,26 +249,18 @@ const styles = StyleSheet.create({
   ctaButtonText: { color: PALETTE.background, fontWeight: 'bold', fontSize: 16 },
   mainTitle: { fontSize: 28, fontWeight: 'bold', color: PALETTE.textPrimary, marginBottom: 8 },
   subtitle: { fontSize: 16, color: PALETTE.textSecondary, marginBottom: 32, lineHeight: 24, textAlign: 'center' },
-  
-  // CAMBIOS DE ESTILO AQUÍ
-  productImage: { 
-    width: '100%', 
-    height: 220, // Antes 180
-    backgroundColor: '#333' 
-  },
+  productImage: { width: '100%', height: 220, backgroundColor: '#333' },
   filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'transparent',
     paddingVertical: 10,
-    paddingHorizontal: 14, // Antes 16
+    paddingHorizontal: 14,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#4A5568',
-    marginRight: 10, // Antes 12
+    marginRight: 10,
   },
-  
-  // ESTILOS QUE SE MANTIENEN
   productCard: { backgroundColor: PALETTE.cardBackground, borderRadius: 16, marginBottom: 20, overflow: 'hidden' },
   discountBadge: { position: 'absolute', top: 12, left: 12, backgroundColor: '#E53E3E', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10 },
   discountText: { color: '#FFF', fontWeight: 'bold', fontSize: 12 },
@@ -295,5 +316,38 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     color: PALETTE.textPrimary,
     fontSize: 16,
+  },
+  cartFab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    backgroundColor: PALETTE.accent,
+    borderRadius: 30,
+    width: 60,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#E53E3E',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 5,
+  },
+  cartBadgeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 });

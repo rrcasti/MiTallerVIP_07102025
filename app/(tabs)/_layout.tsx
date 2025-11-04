@@ -1,10 +1,14 @@
 // app/(tabs)/_layout.tsx
 
-import React, { useEffect } from 'react';
-import { Tabs, useRouter, usePathname } from 'expo-router';
+import React from 'react';
+import { Tabs } from 'expo-router';
 import { Home, Car, ShoppingBag, Bell, MessageCircle, Truck } from 'lucide-react-native';
 import { Alert, TouchableOpacity, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+
+// ✅ Import del context y banner
+import { useInAppNotification } from '../../components/context/InAppNotificationContext';
 
 export default function TabLayout() {
   const activeColor = '#FBBF24';
@@ -12,34 +16,6 @@ export default function TabLayout() {
   
   // ✅ Hook para navegación
   const router = useRouter();
-
-  /*
-  const { isProfileVerified, isLoading } = useAuth();
-  const pathname = usePathname();
-
-  useEffect(() => {
-    if (isLoading) {
-      return;
-    }
-
-    if (!isProfileVerified && pathname !== '/profile') {
-      Alert.alert(
-        "Completa tu perfil",
-        "Debes completar tus datos personales para acceder a todas las funciones de la app.",
-        [
-          {
-            text: "Ir a mi perfil",
-            onPress: () => router.push('/profile'),
-          },
-          {
-            text: "Cancelar",
-            style: "cancel",
-          },
-        ]
-      );
-    }
-  }, [isProfileVerified, isLoading, pathname, router]);
-  */
 
   // ✅ Función para manejar solicitud de grúa
   const handleTowRequest = () => {
@@ -51,8 +27,7 @@ export default function TabLayout() {
           text: "Sí, solicitar grúa",
           onPress: () => {
             console.log('🚛 Navegando a solicitud de grúa...');
-            // ✅ CAMBIO: Sin guión
-            router.push('/emergency/towRequest');  // ← ANTES: '/tow-request'
+            router.push('/emergency/towRequest');  
           },
         },
         {
@@ -63,9 +38,12 @@ export default function TabLayout() {
     );
   };
 
+  // ✅ Contexto de notificaciones
+  const { bannerVisible, notification } = useInAppNotification();
+
   return (
     <>
-      {/* ═══ TABS ORIGINALES (Sin cambios) ═══ */}
+      {/* ═══ TABS ORIGINALES ═══ */}
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: activeColor,
@@ -92,7 +70,6 @@ export default function TabLayout() {
             tabBarIcon: ({ color }) => <Car size={24} color={color} />,
           }}
         />
-        
         <Tabs.Screen
           name="store"
           options={{
@@ -116,6 +93,11 @@ export default function TabLayout() {
         />
       </Tabs>
       
+      {/* ═══ Banner de notificación ═══ */}
+      {bannerVisible && notification && (
+        <InAppNotificationBanner notification={notification} />
+      )}
+
       {/* ═══ BOTÓN FLOTANTE DE EMERGENCIA ═══ */}
       <TouchableOpacity
         style={styles.emergencyButton}
@@ -131,36 +113,20 @@ export default function TabLayout() {
 // ═══ ESTILOS DEL BOTÓN FLOTANTE ═══
 const styles = StyleSheet.create({
   emergencyButton: {
-    // Posicionamiento
     position: 'absolute',
     right: 20,
-    bottom: 80,
-    
-    // Tamaño
+    bottom: 105,
     width: 60,
     height: 60,
     borderRadius: 30,
-    
-    // Color
     backgroundColor: '#EF4444',
-    
-    // Centrado
     justifyContent: 'center',
     alignItems: 'center',
-    
-    // Sombra iOS
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    
-    // Sombra Android
     elevation: 8,
-    
-    // Borde
     borderWidth: 3,
     borderColor: '#DC2626',
   },

@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-// ❌ ELIMINADO: import { LinearGradient } from 'expo-linear-gradient';
 import { Brain, AlertTriangle, CheckCircle, TrendingUp } from 'lucide-react-native';
 import { callGeminiAPI } from '../../services/geminiService';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -16,10 +15,23 @@ export default function AIInsights({ healthData, mode, vehicleInfo }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchAIAnalysis();
+    // ✅ VALIDACIÓN AGREGADA: Solo analizar si healthData existe
+    if (healthData && healthData.totalKm !== undefined) {
+      fetchAIAnalysis();
+    } else {
+      console.warn('⚠️ AIInsights: healthData no disponible aún, esperando...');
+      setLoading(false);
+    }
   }, [healthData]);
 
   const fetchAIAnalysis = async () => {
+    // ✅ VALIDACIÓN AGREGADA: Verificar datos antes de analizar
+    if (!healthData || healthData.totalKm === undefined) {
+      console.warn('⚠️ No se puede analizar sin healthData válido');
+      setLoading(false);
+      return;
+    }
+
     try {
       const prompt = generatePrompt(healthData, mode, vehicleInfo);
       
@@ -59,6 +71,16 @@ export default function AIInsights({ healthData, mode, vehicleInfo }) {
     }
     setLoading(false);
   };
+
+  // ✅ VALIDACIÓN AGREGADA: Mostrar estado de espera si no hay datos
+  if (!healthData || healthData.totalKm === undefined) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Brain size={24} color="#9b59b6" />
+        <Text style={styles.loadingText}>Esperando datos del vehículo...</Text>
+      </View>
+    );
+  }
 
   if (loading) {
     return (
@@ -141,13 +163,20 @@ export default function AIInsights({ healthData, mode, vehicleInfo }) {
 }
 
 function generatePrompt(healthData, mode, vehicleInfo) {
+  // ✅ VALIDACIÓN AGREGADA: Valores por defecto si faltan datos
+  const totalKm = healthData?.totalKm || 0;
+  const kmThisMonth = healthData?.kmThisMonth || 0;
+  const avgKmPerMonth = healthData?.avgKmPerMonth || 0;
+  const nextOilChange = healthData?.nextOilChange || 5000;
+  const daysOld = healthData?.daysOld || 0;
+
   if (mode === 'gps') {
     return `
 Analiza la salud de este vehículo con datos GPS reales:
-- KM totales: ${healthData.totalKm}
-- KM este mes: ${healthData.kmThisMonth}
-- Promedio mensual: ${healthData.avgKmPerMonth}
-- Próximo cambio aceite: ${healthData.nextOilChange} km
+- KM totales: ${totalKm}
+- KM este mes: ${kmThisMonth}
+- Promedio mensual: ${avgKmPerMonth}
+- Próximo cambio aceite: ${nextOilChange} km
 
 Proporciona:
 1. Evaluación del health_score (0-100)
@@ -163,8 +192,8 @@ Sé específico y práctico.
   return `
 Estima la salud del vehículo con datos limitados:
 ${vehicleInfo ? `- Vehículo: ${vehicleInfo.brand} ${vehicleInfo.model} ${vehicleInfo.year}` : ''}
-- Último km registrado: ${healthData.totalKm}
-- Días sin actualizar: ${healthData.daysOld || 0}
+- Último km registrado: ${totalKm}
+- Días sin actualizar: ${daysOld}
 
 Proporciona estimación CONSERVADORA incluyendo:
 1. Health score estimado
@@ -199,7 +228,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   card: {
-    backgroundColor: '#9b59b611', // ✅ Reemplazado gradient
+    backgroundColor: '#9b59b611',
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,

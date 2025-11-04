@@ -1,6 +1,5 @@
 // RUTA: services/chatService.js
-
-import { db, auth, storage, } from '../firebase/config'; // Usamos tu archivo de config
+import { db, auth, storage, } from '../firebase/config';
 import {
   collection,
   query,
@@ -14,19 +13,18 @@ import {
   where,
   limit,
   updateDoc,
+  increment, 
+  getDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 /**
  * Busca una conversación existente para el usuario actual o crea una nueva si no existe.
- * Esta función es el punto de entrada para iniciar el chat.
- * @param {string} userId - El UID del usuario autenticado.
- * @returns {Promise<object>} El objeto de la conversación con su ID.
  */
 export const findOrCreateConversation = async (userId) => {
   console.log(`[chatService]: Buscando conversación para el usuario ${userId}...`);
   const conversationsRef = collection(db, 'conversations');
-  // Buscamos una conversación activa que pertenezca al usuario
   const q = query(conversationsRef, where('userId', '==', userId), limit(1));
   
   try {
@@ -38,47 +36,74 @@ export const findOrCreateConversation = async (userId) => {
       return { id: doc.id, ...doc.data() };
     } else {
       console.log(`[chatService]: No se encontró conversación, creando una nueva...`);
-      const newConvRef = await addDoc(conversationsRef, {
+      
+      const user = auth.currentUser;
+      let userName = 'Cliente';
+      let userEmail = '';
+      if (user) {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            userName = userData.displayName || userData.full_name || user.displayName || 'Cliente';
+            userEmail = userData.email || user.email || '';
+        } else {
+            userName = user.displayName || 'Cliente';
+            userEmail = user.email || '';
+        }
+      }
+      
+      const newConvData = {
         userId: userId,
+        userName: userName,
+        userEmail: userEmail,
+        advisorId: null,
         createdAt: serverTimestamp(),
         lastMessage: 'Conversación iniciada.',
         lastMessageAt: serverTimestamp(),
-      });
+        lastMessageSender: 'client',
+        archivedByAdvisor: false,
+        archivedByUser: false,
+        unreadCountAdvisor: 0,
+        unreadCountClient: 0,
+        typingAdvisor: false,
+        typingClient: false,
+        isDeleted: false,
+      };
+
+      const newConvRef = await addDoc(conversationsRef, newConvData);
+
       console.log(`[chatService]: Nueva conversación creada con ID: ${newConvRef.id}`);
-      return { id: newConvRef.id, userId, createdAt: new Date() };
+      return { id: newConvRef.id, ...newConvData, createdAt: new Date() }; 
     }
   } catch (error) {
     console.error("[chatService Error]: No se pudo encontrar o crear la conversación.", error);
-    // Es crucial lanzar el error para que la UI pueda reaccionar
     throw error;
   }
 };
 
 /**
- * Escucha en tiempo real los mensajes de una conversación, ordenados por fecha.
- * @param {string} conversationId - El ID de la conversación a escuchar.
- * @param {function} callback - Función que se ejecuta con la lista de mensajes cada vez que hay una actualización.
- * @returns {function} Una función para cancelar la suscripción y evitar fugas de memoria.
+ * Escucha en tiempo real los mensajes de una conversación.
  */
 export const listenToMessages = (conversationId, callback) => {
   console.log(`[chatService]: Suscribiendo a mensajes de la conversación ${conversationId}`);
   const messagesRef = collection(db, 'conversations', conversationId, 'messages');
-  const q = query(messagesRef, orderBy('timestamp', 'asc'));
+  
+  const q = query(
+    messagesRef, 
+    where('isDeleted', '==', false),
+    orderBy('timestamp', 'desc') // <-- Mantenemos 'desc' como en tu archivo
+  );
 
-  // onSnapshot es la función clave de Firebase para la escucha en tiempo real.
-  // Es mucho más eficiente que hacer polling (consultas repetidas).
   const unsubscribe = onSnapshot(q, (querySnapshot) => {
     const messages = querySnapshot.docs.map(doc => ({ 
         id: doc.id, 
         ...doc.data(),
-        // Convertimos el timestamp de Firebase a un objeto Date de JS para manejarlo fácilmente
         timestamp: doc.data().timestamp?.toDate() 
     }));
-    console.log(`[chatService]: Recibidos ${messages.length} mensajes.`);
-    callback(messages);
+    callback(messages); // <-- Mantenemos el callback
   }, (error) => {
     console.error("[chatService Error]: Falló la suscripción a mensajes.", error);
-    // En un caso real, aquí podríamos implementar un sistema de reconexión.
   });
 
   return unsubscribe;
@@ -86,9 +111,6 @@ export const listenToMessages = (conversationId, callback) => {
 
 /**
  * Sube un archivo (imagen/video) a Firebase Storage.
- * @param {string} localUri - La URI local del archivo en el dispositivo.
- * @param {string} remotePath - La ruta donde se guardará en el Storage.
- * @returns {Promise<string>} La URL de descarga pública del archivo.
  */
 export const uploadFileToStorage = async (localUri, remotePath) => {
     console.log(`[chatService]: Subiendo archivo desde ${localUri} a ${remotePath}`);
@@ -109,10 +131,12 @@ export const uploadFileToStorage = async (localUri, remotePath) => {
     }
 };
 
+// ============================================================================
+// FUNCIÓN 'sendMessage' (CORREGIDA)
+// ============================================================================
 /**
- * Envía un nuevo mensaje a una conversación, incluyendo la posibilidad de adjuntar un archivo.
- * @param {string} conversationId - El ID de la conversación.
- * @param {object} messageData - Los datos del mensaje ({ text, file }).
+ * Envía un nuevo mensaje a una conversación.
+ * Acepta un objeto messageData con { text, file }
  */
 export const sendMessage = async (conversationId, messageData) => {
     const user = auth.currentUser;
@@ -120,38 +144,75 @@ export const sendMessage = async (conversationId, messageData) => {
         console.error("[chatService Error]: Intento de enviar mensaje sin usuario autenticado.");
         throw new Error("Usuario no autenticado.");
     }
+    
+    // Validar que hay algo que enviar
+    const text = messageData.text ? messageData.text.trim() : '';
+    const file = messageData.file; // El objeto { uri, type, ... } de ImagePicker
+    if (!text && !file) {
+        console.log("[chatService]: Intento de enviar mensaje vacío.");
+        return; 
+    }
+
     console.log(`[chatService]: Enviando mensaje a la conversación ${conversationId}...`);
 
     try {
+        // Objeto base del mensaje
         let finalMessageData = {
             uid: user.uid,
-            text: messageData.text || '',
+            senderName: user.displayName || 'Cliente',
+            text: text, // Texto (puede estar vacío si es solo archivo)
             timestamp: serverTimestamp(),
-            type: 'text', // Tipo por defecto
+            isDeleted: false,
+            readBy: [user.uid], // El emisor ya lo leyó
+            
+            // Campos de compatibilidad (basados en tu base de datos funcional)
+            isRead: false,
             read: false,
-          };
+            isReaded: false,
+        };
 
-        // Si hay un archivo adjunto, lo subimos y añadimos su info al mensaje
-        if (messageData.file) {
-            const file = messageData.file;
-            const remotePath = `chat_media/${conversationId}/${Date.now()}_${file.fileName || 'file'}`;
+        let lastMessageText = text;
+
+        // Si hay un archivo adjunto, subirlo y actualizar messageData
+        if (file) {
+            console.log(`[chatService]: Adjuntando archivo... tipo: ${file.type}`);
+            const fileType = file.type === 'video' ? 'video' : 'image';
+            const fileExtension = file.uri.split('.').pop() || (fileType === 'video' ? 'mp4' : 'jpg');
+            const remotePath = `chat_media/${conversationId}/${Date.now()}.${fileExtension}`;
+            
             const downloadUrl = await uploadFileToStorage(file.uri, remotePath);
             
-            finalMessageData.fileUrl = downloadUrl;
-            finalMessageData.fileName = file.fileName;
-            finalMessageData.type = file.type === 'video' ? 'video' : 'image'; // 'image' o 'video'
+            finalMessageData.type = fileType;
+            finalMessageData.fileUrl = downloadUrl; // <-- Usamos fileUrl (como en AdminChat)
+            finalMessageData.fileName = file.fileName || `${fileType}.${fileExtension}`; // Usar nombre original si existe
+
+            // Actualizar el texto del último mensaje
+            lastMessageText = (fileType === 'image') ? '📷 Imagen' : '📹 Video';
+            if (text) {
+                finalMessageData.text = text; // Si hay texto Y archivo, se guarda el texto
+            } else {
+                finalMessageData.text = lastMessageText; // Si solo es archivo, el texto es '📷 Imagen'
+            }
+
+        } else {
+            // Si no hay archivo, es solo texto
+            finalMessageData.type = 'text';
         }
-        
-        // Añadimos el mensaje a la sub-colección de mensajes
+
+        // 1. Añadir el mensaje a la subcolección
         const messagesRef = collection(db, 'conversations', conversationId, 'messages');
         await addDoc(messagesRef, finalMessageData);
 
-        // Actualizamos el documento principal de la conversación con el último mensaje
+        // 2. Actualizar el documento principal de la conversación
         const conversationRef = doc(db, 'conversations', conversationId);
         await updateDoc(conversationRef, {
-            lastMessage: finalMessageData.text || (finalMessageData.type === 'image' ? '📷 Imagen' : '📹 Video'),
+            lastMessage: lastMessageText,
             lastMessageAt: serverTimestamp(),
+            lastMessageSender: 'client', // <-- CAMBIADO A 'client' (tu estándar)
+            unreadCountAdvisor: increment(1),
+            typingClient: false, // Asegurarse de resetear el 'typing'
         });
+
         console.log(`[chatService]: Mensaje enviado con éxito.`);
 
     } catch (error) {
@@ -159,39 +220,70 @@ export const sendMessage = async (conversationId, messageData) => {
         throw error;
     }
 };
+// ============================================================================
+// FIN DE LA FUNCIÓN CORREGIDA
+// ============================================================================
+
 
 /**
- * Elimina un mensaje específico de una conversación.
- * @param {string} conversationId - El ID de la conversación.
- * @param {string} messageId - El ID del mensaje a eliminar.
+ * Elimina un mensaje (soft delete).
  */
 export const deleteMessage = async (conversationId, messageId) => {
-  console.log(`[chatService]: Eliminando mensaje ${messageId} de la conversación ${conversationId}`);
-  try {
-    const messageRef = doc(db, `conversations/${conversationId}/messages`, messageId);
-    await deleteDoc(messageRef);
-    console.log(`[chatService]: Mensaje eliminado con éxito.`);
-  } catch (error) {
-    console.error("[chatService Error]: No se pudo eliminar el mensaje.", error);
-    throw error;
-  }
+    console.log(`[chatService]: Eliminando mensaje ${messageId}...`);
+    try {
+        const messageRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+        await updateDoc(messageRef, { isDeleted: true });
+        console.log(`[chatService]: Mensaje eliminado con éxito.`);
+    } catch (error) {
+        console.error("[chatService Error]: No se pudo eliminar el mensaje.", error);
+        throw error;
+    }
 };
 
-// En tu archivo chatService.js, al final del archivo
 /**
- * Marca un mensaje específico como leído.
- * @param {string} conversationId - El ID de la conversación.
- * @param {string} messageId - El ID del mensaje a marcar como leído.
+ * Marca TODOS los mensajes no leídos del asesor como leídos por el cliente.
  */
-export const markMessageAsRead = async (conversationId, messageId) => {
+export const markConversationAsReadByClient = async (conversationId, messages, currentUserId) => {
+  console.log(`[chatService]: Intentando marcar mensajes como leídos en conversación ${conversationId}...`);
+  
+  if (!messages || messages.length === 0) {
+    console.log(`[chatService]: No hay mensajes para marcar.`);
+    return;
+  }
+
+  const unreadAdvisorMessages = messages.filter(msg => 
+    msg.uid !== currentUserId && // No es mi mensaje
+    (!msg.readBy || !msg.readBy.includes(currentUserId)) // Y no está en el array 'readBy'
+  );
+
+  if (unreadAdvisorMessages.length === 0) {
+    // console.log(`[chatService]: No hay mensajes del asesor sin leer.`); // Log muy ruidoso
+    return;
+  }
+
+  console.log(`[chatService]: Marcando ${unreadAdvisorMessages.length} mensajes como leídos...`);
+
   try {
-      const messageRef = doc(db, 'conversations', conversationId, 'messages', messageId);
-      await updateDoc(messageRef, {
+    const batch = writeBatch(db);
+    
+    unreadAdvisorMessages.forEach(msg => {
+      const messageRef = doc(db, 'conversations', conversationId, 'messages', msg.id);
+      const newReadBy = msg.readBy ? [...msg.readBy, currentUserId] : [currentUserId];
+      // Estandarizamos todos los campos de "leído"
+      batch.update(messageRef, { 
+          readBy: newReadBy,
+          isRead: true,
           read: true,
+          isReaded: true
       });
-      console.log(`[chatService]: Mensaje ${messageId} marcado como leído.`);
+    });
+
+    const conversationRef = doc(db, 'conversations', conversationId);
+    batch.update(conversationRef, { unreadCountClient: 0 }); // Resetea el contador del cliente
+
+    await batch.commit();
+    console.log(`[chatService]: ${unreadAdvisorMessages.length} mensajes marcados como leídos.`);
   } catch (error) {
-      console.error("[chatService Error]: No se pudo marcar el mensaje como leído.", error);
-      throw error;
+    console.error("[chatService Error]: Falló al marcar mensajes como leídos.", error);
   }
 };

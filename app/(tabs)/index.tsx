@@ -1,16 +1,22 @@
 // RUTA: app/(tabs)/index.tsx
 
-import { Car, Calendar, ShoppingBag, MessageCircle, FileText, User, Wrench, Crown, CheckCircle, Truck  } from 'lucide-react-native';
+import { Car, Calendar, ShoppingBag, MessageCircle, FileText, User, Wrench, Crown, CheckCircle, Truck } from 'lucide-react-native';
 import React, { useState, useEffect, useCallback } from "react";
-import { Text, View, ActivityIndicator, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView} from "react-native";
+import { Text, View, ActivityIndicator, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView } from "react-native";
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import QuickAccessButton from '../../components/QuickAccessButton';
-import HealthPreview from '../../components/health/HealthPreview'; // 👈 NUEVO IMPORT
+import HealthPreview from '../../components/health/HealthPreview';
 import { getRepairsForUser } from '../../services/repairService';
-import { getVehiclesForUser } from '../../services/vehicleService';
+import { getVehiclesForUser, getVehicleById } from '../../services/vehicleService';
 import { useMembership } from '../../context/MembershipContext';
 import { useAuth } from '../../context/AuthContext';
 import { useVehicles } from '../../context/VehicleContext';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { firestore } from '../../firebase/config';
+// ✅ CAMBIO: Importar ActionRequiredCard (no ActionRequiredNotificationCard)
+import ActionRequiredCard from '../../components/ui/ActionRequiredCard';
+import { useInAppNotification } from '../../components/context/InAppNotificationContext.jsx';
 
 const statusConfig = {
     ingresado: { label: "Ingresado", color: "#3B82F6" },
@@ -61,6 +67,66 @@ export default function DashboardScreen() {
     const [loadingRepairs, setLoadingRepairs] = useState(true);
     const [activeServices, setActiveServices] = useState([]);
     const [primaryVehicle, setPrimaryVehicle] = useState(null);
+    const [healthData, setHealthData] = useState(null);
+
+    // ✅ Hook de notificaciones (solo necesitamos actionCards y dismissActionCard aquí)
+    const { actionCards, dismissActionCard } = useInAppNotification(); 
+
+    const loadHealthData = useCallback(async () => {
+        if (!primaryVehicle?.id) {
+            console.warn('⚠️ No hay primaryVehicle');
+            return;
+        }
+    
+        try {
+            console.log('🔄 Cargando health data para:', primaryVehicle.id);
+    
+            const healthRef = doc(firestore, 'vehicleHealth', primaryVehicle.id);
+            const healthDoc = await getDoc(healthRef);
+    
+            if (healthDoc.exists()) {
+                const data = healthDoc.data();
+                
+                console.log('✅ currentKm de Firebase:', data.currentKm);
+    
+                setHealthData({
+                    totalKm: data.currentKm || 0,
+                    kmThisMonth: data.kmThisMonth || 0,
+                    healthScore: data.healthScore || 85,
+                    lastUpdate: data.lastUpdate || new Date().toISOString(),
+                    diamonds: data.diamonds || 0,
+                    totalServicesLogged: data.totalServicesLogged || 0,
+                    nextOilChange: (() => {
+                        const currentKm = data.currentKm || 0;
+                        const lastOil = data.lastServices?.oil_change || 0;
+                        
+                        if (!lastOil || (lastOil + 5000) <= currentKm) {
+                            return currentKm + 6500;
+                        }
+                        
+                        return lastOil + 5000;
+                    })(),
+                });
+    
+                console.log('✅ Health data cargado - KM actual:', data.currentKm);
+    
+            } else {
+                console.log('⚠️ No existe health data para este vehículo');
+                setHealthData({
+                    totalKm: 0,
+                    kmThisMonth: 0,
+                    healthScore: 85,
+                    lastUpdate: new Date().toISOString(),
+                    diamonds: 0,
+                    totalServicesLogged: 0,
+                    nextOilChange: 5000,
+                });
+            }
+    
+        } catch (error) {
+            console.error('❌ Error loading health data:', error);
+        }
+    }, [primaryVehicle]);
 
     const loadDashboardData = useCallback(async () => {
         if (!user) return;
@@ -82,8 +148,25 @@ export default function DashboardScreen() {
     useEffect(() => {
         if (vehicles.length > 0) {
             setPrimaryVehicle(vehicles[0]);
+            console.log('🚗 Primary Vehicle:', vehicles[0]);
+            console.log('🆔 Vehicle ID:', vehicles[0].id);
         }
     }, [vehicles]);
+
+    useEffect(() => {
+        if (primaryVehicle?.id) {
+            loadHealthData();
+        }
+    }, [primaryVehicle, loadHealthData]);
+
+    useFocusEffect(
+        useCallback(() => {
+            console.log('🔄 Index enfocado - Recargando health data...');
+            if (primaryVehicle?.id) {
+                loadHealthData();
+            }
+        }, [primaryVehicle, loadHealthData])
+    );
 
     if (isAuthLoading || isVehiclesLoading || loadingRepairs || isMembershipLoading) {
         return (
@@ -112,13 +195,26 @@ export default function DashboardScreen() {
                 <Text style={styles.welcomeText}>¡Bienvenido, {user?.displayName?.split(' ')[0] || 'Cliente'}!</Text>
                 {primaryVehicle && <Text style={styles.vehicleText}>{`${primaryVehicle.brand} ${primaryVehicle.model}`}</Text>}
                 
-                {/* 🔥 NUEVO: HEALTH PREVIEW */}
-                <HealthPreview onPress={() => {
-                    console.log('Health Check pressed - crear pantalla health.tsx');
-                    router.push('/health'); // 👈 Descomenta cuando crees la pantalla
-                }} />
+                <HealthPreview 
+                    healthData={healthData}
+                    vehicle={primaryVehicle}
+                    onPress={() => router.push('/health')} 
+                />
 
-                {/* MEMBRESÍA */}
+                {/* ✅ SECCIÓN DE TARJETAS DE ACCIÓN REQUERIDA */}
+                {actionCards && actionCards.length > 0 && (
+                    <View style={styles.actionRequiredSection}>
+                        <Text style={styles.actionRequiredTitle}>⚠️ Acciones Pendientes</Text>
+                        {actionCards.map((card) => (
+                            <ActionRequiredCard 
+                                key={card.id} 
+                                notification={card} 
+                                onDismiss={() => dismissActionCard(card.id)}
+                            />
+                        ))}
+                    </View>
+                )}
+
                 {membership ? (
                     <View style={styles.vipCard}>
                         <TouchableOpacity
@@ -168,7 +264,7 @@ export default function DashboardScreen() {
                         <QuickAccessButton icon={Calendar} title="Agendar Turno" subtitle="Mantenimiento" onPress={() => {}} />
                         <QuickAccessButton icon={ShoppingBag} title="Tienda VIP" subtitle="Productos" onPress={() => router.push('/(tabs)/store')} />
                         <QuickAccessButton icon={MessageCircle} title="Mi Asesor" subtitle="Chat directo" onPress={() => router.push('/(tabs)/chat')} />
-                        <QuickAccessButton icon={FileText} title="Documentos" subtitle="Facturas" onPress={() => {}} />
+                        <QuickAccessButton icon={FileText} title="Documentos" subtitle="Facturas" onPress={() => router.push('../documents')}/>
                     </View> 
                 </View> 
 
@@ -257,5 +353,16 @@ const styles = StyleSheet.create({
         marginLeft: 12,
         borderLeftWidth: 1,
         borderLeftColor: '#475569',
+    },
+    actionRequiredSection: {
+        marginTop: 20,
+        marginBottom: 20,
+    },
+    actionRequiredTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#FBBF24',
+        marginBottom: 12,
+        marginLeft: 5,
     },
 });

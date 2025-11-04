@@ -112,7 +112,6 @@ function generateMockAnalysis(prompt, hasImage = false) {
     });
   }
   
-  return "Análisis generado localmente. Configura Vertex AI para análisis con IA real.";
 }
 
 /**

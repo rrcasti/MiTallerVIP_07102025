@@ -113,6 +113,7 @@ export default function ConciergeServiceForm() {
       setIsSubmitting(true);
       const uploadedPhotos = []; 
       const serviceOrderData = {
+        user_id: user.uid,
         customerInfo: { userId: user.uid, name: userData.name || 'N/A', lastName: userData.displayName || 'N/A', phone: userData.phoneNumber || 'N/A' },
         vehicleInfo: selectedVehicle,
         services: selectedServices,

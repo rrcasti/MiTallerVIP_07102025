@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           // Cargar el perfil del usuario para verificar si está completo
           const profileData = await getUserProfile(authenticatedUser.uid);
           // Verificamos si los datos obligatorios existen (por ejemplo, nombre y teléfono)
-          const hasRequiredData = !!profileData?.full_name && !!profileData?.phone;
+          const hasRequiredData = !!profileData?.displayName && !!profileData?.phone;
           setIsProfileVerified(hasRequiredData);
         } catch (e) {
           console.error("Error al obtener el perfil del usuario:", e);
